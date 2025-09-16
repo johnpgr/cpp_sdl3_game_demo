@@ -1,7 +1,7 @@
 #include "arena.h"
 #include "assert.h"
-#include "memory.h"
 
+#include <SDL3/SDL.h>
 #include <algorithm> // For std::max
 #include <string.h>  // For std::memset
 
@@ -31,8 +31,8 @@ void Arena::destroy() {
         ArenaBlock* prev_block = current;
         current = current->next; // Move to the next block in the chain
                                  // (towards head)
-        platform_free(prev_block->memory, prev_block->capacity);
-        platform_free(prev_block, sizeof(ArenaBlock));
+        SDL_free(prev_block->memory);
+        SDL_free(prev_block);
     }
     current_block = nullptr;
 }
@@ -50,9 +50,9 @@ void* Arena::push(usize size, usize alignment) {
         current_block->memory + current_block->used,
         alignment
     ));
-    usize padded_size = (aligned_ptr_in_block -
-                         (current_block->memory + current_block->used)) +
-                        size;
+    usize padded_size =
+        (aligned_ptr_in_block - (current_block->memory + current_block->used)) +
+        size;
 
     // Check if current block has enough space
     if (current_block->used + padded_size > current_block->capacity) {
@@ -131,8 +131,8 @@ void Arena::pop(usize new_total_size) {
             temp = temp->next;
         }
         current_block = target_block; // Update current_block_ to the block
-                                       // where new_total_size ends
-    } else {                           // new_total_size is 0 or less
+                                      // where new_total_size ends
+    } else {                          // new_total_size is 0 or less
         clear();
     }
     total_used_size = new_total_size;
@@ -152,7 +152,9 @@ void Arena::clear() {
     }
 }
 
-usize Arena::get_total_used_size() { return total_used_size; }
+usize Arena::get_total_used_size() {
+    return total_used_size;
+}
 
 template <typename T> T* Arena::push_array(usize count, usize alignment) {
     return (T*)(push(sizeof(T) * count, alignment));
@@ -175,16 +177,17 @@ template <typename T> T* Arena::push_struct_zero(usize alignment) {
 void Arena::grow_arena(usize min_capacity) {
     usize actual_capacity = std::max(min_capacity, initial_block_capacity);
 
-    ArenaBlock* new_block = (ArenaBlock*
-    )platform_alloc(sizeof(ArenaBlock)); // Allocate metadata for the new block
-    new_block->memory =
-        (u8*)platform_alloc(actual_capacity); // Allocate raw memory
+    // Allocate metadata for the new block
+    ArenaBlock* new_block = (ArenaBlock*)SDL_malloc(sizeof(ArenaBlock));
+    // Allocate raw memory
+    new_block->memory = (u8*)SDL_malloc(actual_capacity);
     new_block->capacity = actual_capacity;
     new_block->used = 0;
-    new_block->next = current_block; // Link new block to the previous
-                                      // (making it the head)
-
-    current_block = new_block; // New block becomes the current active block
+    // Link new block to the previous
+    // (making it the head)
+    new_block->next = current_block;
+    // New block becomes the current active block
+    current_block = new_block;
 }
 
 ArenaBlock* Arena::get_first_block() {
