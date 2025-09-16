@@ -10,3 +10,6 @@ AlignAfterOpenBracket: BlockIndent
 AllowAllParametersOfDeclarationOnNextLine: false
 AllowAllArgumentsOnNextLine: false
 AllowShortIfStatementsOnASingleLine: WithoutElse
+AlwaysBreakAfterReturnType: None
+AllowShortFunctionsOnASingleLine: None
+PenaltyReturnTypeOnItsOwnLine: 1000

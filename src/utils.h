@@ -3,8 +3,6 @@
 #include <utility>
 #include <SDL3/SDL.h>
 
-#define LOG(fmt, ...) SDL_Log(fmt "\n", ##__VA_ARGS__)
-
 #define BIT(x) 1 << (x)
 #define KB(x) ((usize)1024 * x)
 #define MB(x) ((usize)1024 * KB(x))
@@ -29,3 +27,19 @@ template <typename F> Defer<F> operator+(defer_dummy, F&& f) {
 }
 
 #define defer auto _defer(__LINE__) = defer_dummy() + [&]()
+
+#ifdef _WIN32
+#define export __declspec(dllexport)
+#elif __linux__
+#define export
+#elif __APPLE__
+#define export
+#endif
+
+#ifdef _WIN32
+#define DYNLIB(name) name ".dll"
+#elif defined(__linux__)
+#define DYNLIB(name) "lib" name ".so"
+#elif defined(__APPLE__)
+#define DYNLIB(name) "lib" name ".dylib"
+#endif

@@ -1,11 +1,11 @@
 #pragma once
 
-#include "arena.h"
-#include "types.h"
 #include "math3d.h"
+#include "types.h"
 #include <SDL3/SDL_keycode.h>
 
-constexpr int KEY_COUNT = 512;
+#define KEY_COUNT 512
+#define MOUSE_BUTTON_COUNT 8
 
 struct Key {
     bool is_down{};
@@ -28,29 +28,12 @@ struct InputState {
     ivec2 rel_mouse_world{};
 
     Key keys[KEY_COUNT]{};
+    Key mouse_buttons[MOUSE_BUTTON_COUNT]{};
 
-    static InputState* create(Arena* arena, i32 screen_width, i32 screen_height) {
-        InputState* state = arena->push_struct<InputState>();
-        state->screen_size.x = screen_width;
-        state->screen_size.y = screen_height;
-        return state;
-    }
+    bool key_pressed_this_frame(SDL_Keycode key_code);
+    bool key_released_this_frame(SDL_Keycode key_code);
+    bool key_is_down(SDL_Keycode key_code);
+    bool mouse_button_is_down(u8 button);
 };
 
-static InputState* input_state;
-
-static bool key_pressed_this_frame(SDL_Keycode key_code) {
-    Key key = input_state->keys[key_code];
-    bool result = (key.is_down && key.half_transition_count == 1) ||
-                  key.half_transition_count > 1;
-    return result;
-}
-
-static bool key_released_this_frame(SDL_Keycode key_code) {
-    Key key = input_state->keys[key_code];
-    bool result = (!key.is_down && key.half_transition_count == 1) ||
-                  key.half_transition_count > 1;
-    return result;
-}
-
-bool key_is_down(SDL_Keycode key_code) { return input_state->keys[key_code].is_down; }
+static InputState* input_state{};
