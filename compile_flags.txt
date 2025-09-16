@@ -1,0 +1,5 @@
+-std=c++23
+-lSDL3
+-I/usr/include
+-Wall
+-Wextra
