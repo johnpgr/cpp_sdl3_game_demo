@@ -2,5 +2,6 @@
 -lSDL3
 -I/usr/include
 -I/usr/local/include
+-IC:/SDKs/SDL3/include
 -Wall
 -Wextra

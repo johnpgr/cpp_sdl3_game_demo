@@ -1,4 +1,3 @@
-#include "SDL3/SDL_loadso.h"
 #include "arena.cpp"
 #include "array.cpp"
 #include "assert.cpp"
@@ -8,12 +7,12 @@
 #include "game.h"
 #include "input.cpp"
 #include "math3d.cpp"
-#include "memory.cpp"
 #include "renderer.cpp"
 #include "types.h"
 #include "utils.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#include <cstdlib>
 
 typedef void GameUpdateFn(GameState*, InputState*, RendererState*);
 static GameUpdateFn* game_update_ptr;
@@ -200,4 +199,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
         transient_storage.clear();
     }
+
+    return EXIT_SUCCESS;
 }

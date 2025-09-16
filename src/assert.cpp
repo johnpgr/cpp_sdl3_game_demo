@@ -1,4 +1,5 @@
 #include "assert.h"
+#include <SDL3/SDL.h>
 #include <cstdlib>
 
 #ifdef __APPLE__
@@ -7,8 +8,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 #elif defined(_WIN32)
-#include <dbghelp.h>
 #include <windows.h>
+#include <dbghelp.h>
 #elif defined(__linux__)
 #include <execinfo.h>
 #include <sys/ptrace.h>

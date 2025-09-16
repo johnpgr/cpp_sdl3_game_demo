@@ -19,7 +19,7 @@ ifeq ($(OS),Windows_NT)
     EXECUTABLE := $(PROJECT_NAME).exe
     LIBRARY_EXT := .dll
     RM := del /Q
-    MKDIR := mkdir
+    MKDIR := mkdir -p
     COPY := copy
     COPYR := xcopy /E /I /Y
     PATH_SEP := \\
@@ -52,15 +52,15 @@ ifeq ($(PLATFORM),Windows)
         SDL3_LIBS := -L$(SDL3_DIR)/lib -lSDL3
     else
         # Default Windows paths - adjust as needed
-        SDL3_INCLUDE := -IC:/SDL3/include
-        SDL3_LIBS := -LC:/SDL3/lib -lSDL3
+        SDL3_INCLUDE := -IC:/SDKs/SDL3/include
+        SDL3_LIBS := -LC:/SDKs/SDL3/build/Release -lSDL3
     endif
     # Windows system libraries
 else
     # Unix: Use pkg-config
     SDL3_INCLUDE := $(shell pkg-config --cflags sdl3 2>/dev/null)
     SDL3_LIBS := $(shell pkg-config --libs sdl3 2>/dev/null)
-    
+
     # Fallback if pkg-config fails
     ifeq ($(SDL3_INCLUDE),)
         SDL3_INCLUDE := -I/usr/local/include/SDL3 -I/usr/include/SDL3
@@ -102,7 +102,7 @@ GAME_DEPENDS := $(DEPS_DIR)/game.d
 
 # Platform-specific dynamic loading libraries
 ifeq ($(PLATFORM),Windows)
-    DL_LIBS := 
+    DL_LIBS :=
 else
     DL_LIBS := -ldl
 endif
@@ -123,9 +123,9 @@ release:
 
 # Create necessary directories
 dirs:
-	$(MKDIR) $(OBJ_DIR)
-	$(MKDIR) $(DEPS_DIR)
-	$(MKDIR) $(BIN_DIR)
+	-$(MKDIR) $(OBJ_DIR)
+	-$(MKDIR) $(DEPS_DIR)
+	-$(MKDIR) $(BIN_DIR)
 
 # Link the main executable
 $(MAIN_TARGET): $(MAIN_OBJECT) | dirs
@@ -152,7 +152,7 @@ $(GAME_OBJECT): $(GAME_SOURCE) | dirs
 # Install target - copy binaries and assets to dist/
 install: all
 	@echo "Installing to $(DIST_DIR)..."
-	$(MKDIR) $(DIST_DIR)
+	-$(MKDIR) $(DIST_DIR)
 	$(COPY) $(MAIN_TARGET) $(DIST_DIR)$(PATH_SEP)
 	$(COPY) $(GAME_TARGET) $(DIST_DIR)$(PATH_SEP)
 ifeq ($(wildcard $(ASSETS_DIR)),$(ASSETS_DIR))

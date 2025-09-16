@@ -1,7 +1,6 @@
 #pragma once
 
 #include <utility>
-#include <SDL3/SDL.h>
 
 #define BIT(x) 1 << (x)
 #define KB(x) ((usize)1024 * x)
