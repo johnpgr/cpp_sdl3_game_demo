@@ -178,7 +178,7 @@ struct mat4x4 {
     static mat4x4 rotate_x(f32 angle);
     static mat4x4 rotate_y(f32 angle);
     static mat4x4 rotate_z(f32 angle);
-    static mat4x4 perspective(f32 fov, f32 aspect, f32 near, f32 far);
+    static mat4x4 perspective(f32 fov, f32 aspect, f32 z_near, f32 z_far);
     static mat4x4 look_at(const vec3& eye, const vec3& center, const vec3& up);
     static mat4x4 orthographic_projection(float left, float right, float top, float bottom);
 };

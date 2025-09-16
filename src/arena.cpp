@@ -2,7 +2,6 @@
 #include "assert.h"
 
 #include <SDL3/SDL.h>
-#include <algorithm> // For std::max
 #include <string.h>  // For std::memset
 
 // Helper for aligning memory
@@ -57,7 +56,7 @@ void* Arena::push(usize size, usize alignment) {
     // Check if current block has enough space
     if (current_block->used + padded_size > current_block->capacity) {
         // Current block is full, grow the arena by allocating a new block
-        usize new_block_capacity = std::max(
+        usize new_block_capacity = SDL_max(
             initial_block_capacity,
             size + alignment - 1
         ); // Ensure new block can fit 'size' after alignment
@@ -175,7 +174,7 @@ template <typename T> T* Arena::push_struct_zero(usize alignment) {
 }
 
 void Arena::grow_arena(usize min_capacity) {
-    usize actual_capacity = std::max(min_capacity, initial_block_capacity);
+    usize actual_capacity = SDL_max(min_capacity, initial_block_capacity);
 
     // Allocate metadata for the new block
     ArenaBlock* new_block = (ArenaBlock*)SDL_malloc(sizeof(ArenaBlock));

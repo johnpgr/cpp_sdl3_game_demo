@@ -479,13 +479,13 @@ mat4x4 mat4x4::rotate_z(f32 angle) {
     return result;
 }
 
-mat4x4 mat4x4::perspective(f32 fov, f32 aspect, f32 near, f32 far) {
+mat4x4 mat4x4::perspective(f32 fov, f32 aspect, f32 z_near, f32 z_far) {
     mat4x4 result(0);
     f32 tan_half_fov = tanf(fov * 0.5f);
     result.ax = 1.0f / (aspect * tan_half_fov);
     result.by = 1.0f / tan_half_fov;
-    result.cz = -(far + near) / (far - near);
-    result.dz = -(2.0f * far * near) / (far - near);
+    result.cz = -(z_far + z_near) / (z_far - z_near);
+    result.dz = -(2.0f * z_far * z_near) / (z_far - z_near);
     result.cw = -1.0f;
     return result;
 }

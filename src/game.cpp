@@ -1,6 +1,9 @@
 #include "types.h"
-#include "utils.h"
 #include "game.h"
+#include "assert.cpp"
+#include "arena.cpp"
+#include "array.cpp"
+#include <SDL3/SDL.h>
 
 static bool just_pressed(GameInputType type) {
     KeyMapping mapping = game_state->key_mappings[type];

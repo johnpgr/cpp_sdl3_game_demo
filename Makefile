@@ -23,8 +23,7 @@ ifeq ($(OS),Windows_NT)
     COPY := copy
     COPYR := xcopy /E /I /Y
     PATH_SEP := \\
-    # Windows-specific flags
-    LDFLAGS += -static-libgcc -static-libstdc++
+    LDFLAGS += -Wl,/SUBSYSTEM:WINDOWS -Wl,/NOIMPLIB
     SHARED_FLAGS := -shared
 else
     PLATFORM := Unix
@@ -35,6 +34,7 @@ else
     COPY := cp
     COPYR := cp -r
     PATH_SEP := /
+    LDFLAGS += -Wl,--no-implib
     SHARED_FLAGS := -shared -fPIC
     UNAME_S := $(shell uname -s)
     ifeq ($(UNAME_S),Darwin)
@@ -102,7 +102,7 @@ GAME_DEPENDS := $(DEPS_DIR)/game.d
 
 # Platform-specific dynamic loading libraries
 ifeq ($(PLATFORM),Windows)
-    DL_LIBS :=
+    DL_LIBS := -ldbghelp
 else
     DL_LIBS := -ldl
 endif
@@ -136,7 +136,7 @@ $(MAIN_TARGET): $(MAIN_OBJECT) | dirs
 # Build the game library
 $(GAME_TARGET): $(GAME_OBJECT) | dirs
 	@echo "Linking $(GAME_TARGET)..."
-	$(CXX) $(SHARED_FLAGS) $(GAME_OBJECT) -o $@ $(LDFLAGS)
+	$(CXX) $(SHARED_FLAGS) $(GAME_OBJECT) -o $@ $(LDFLAGS) $(SDL3_LIBS) $(DL_LIBS)
 	@echo "Game library complete: $(GAME_TARGET)"
 
 # Compile main.cpp
@@ -147,7 +147,7 @@ $(MAIN_OBJECT): $(MAIN_SOURCE) | dirs
 # Compile game.cpp
 $(GAME_OBJECT): $(GAME_SOURCE) | dirs
 	@echo "Compiling $<..."
-	$(CXX) $(CXXFLAGS) $(SHARED_FLAGS) $(INCLUDES) -MMD -MP -MF $(GAME_DEPENDS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -MMD -MP -MF $(GAME_DEPENDS) -c $< -o $@
 
 # Install target - copy binaries and assets to dist/
 install: all
@@ -167,16 +167,8 @@ endif
 
 # Clean build files
 clean:
-	@echo "Cleaning build files..."
-ifeq ($(PLATFORM),Windows)
-	-$(RM) $(BUILD_DIR)\*.* /S 2>nul || true
-	-rmdir $(BUILD_DIR) /S /Q 2>nul || true
-	-$(RM) $(DIST_DIR)\*.* /S 2>nul || true
-	-rmdir $(DIST_DIR) /S /Q 2>nul || true
-else
-	$(RM) -r $(BUILD_DIR) $(DIST_DIR)
-endif
-	@echo "Clean complete."
+	@echo "Cleaning build directory..."
+	rm -rf $(BUILD_DIR)
 
 # Help target
 help:
