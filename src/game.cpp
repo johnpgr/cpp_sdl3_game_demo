@@ -1,8 +1,15 @@
-#include "types.h"
 #include "game.h"
-#include "assert.cpp"
 #include "arena.cpp"
 #include "array.cpp"
+#include "assert.cpp"
+#include "assets.cpp"
+#include "consts.h"
+#include "file.cpp"
+#include "input.cpp"
+#include "math3d.cpp"
+#include "renderer.cpp"
+#include "types.h"
+#include "utils.h"
 #include <SDL3/SDL.h>
 
 static bool just_pressed(GameInputType type) {

@@ -1,6 +1,5 @@
 #include "assert.h"
-#include <SDL3/SDL.h>
-#include <cstdlib>
+#include <SDL3/SDL_log.h>
 
 #ifdef __APPLE__
 #include <execinfo.h>

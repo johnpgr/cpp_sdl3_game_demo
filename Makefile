@@ -9,9 +9,10 @@ ASSETS_DIR := assets
 
 # Compiler settings
 CXX := clang++
-CXXFLAGS := -std=c++23 -Wall -Wextra -O2
-DEBUG_FLAGS := -g -DDEBUG -O0
+CXXFLAGS := -std=c++23 -Wall -Wextra
+DEBUG_FLAGS := -g -DDEBUG
 RELEASE_FLAGS := -DNDEBUG -O3
+LDFLAGS := -fuse-ld=lld
 
 # Platform detection
 ifeq ($(OS),Windows_NT)
@@ -23,7 +24,7 @@ ifeq ($(OS),Windows_NT)
     COPY := copy
     COPYR := xcopy /E /I /Y
     PATH_SEP := \\
-    LDFLAGS += -Wl,/SUBSYSTEM:WINDOWS -Wl,/NOIMPLIB
+	LDFLAGS += -Wl,/SUBSYSTEM:WINDOWS -Wl,/NOIMPLIB
     SHARED_FLAGS := -shared
 else
     PLATFORM := Unix
@@ -93,6 +94,8 @@ MAIN_SOURCE := $(SRC_DIR)/main.cpp
 GAME_SOURCE := $(SRC_DIR)/game.cpp
 MAIN_TARGET := $(BIN_DIR)/$(EXECUTABLE)
 GAME_TARGET := $(BIN_DIR)/libgame$(LIBRARY_EXT)
+MAIN_PDB := $(BIN_DIR)/$(PROJECT_NAME).pdb
+GAME_PDB := $(BIN_DIR)/libgame.pdb
 
 # Object files
 MAIN_OBJECT := $(OBJ_DIR)/main.o
@@ -106,6 +109,7 @@ ifeq ($(PLATFORM),Windows)
 else
     DL_LIBS := -ldl
 endif
+
 
 # Phony targets
 .PHONY: all clean debug release install help dirs
@@ -130,13 +134,13 @@ dirs:
 # Link the main executable
 $(MAIN_TARGET): $(MAIN_OBJECT) | dirs
 	@echo "Linking $(MAIN_TARGET)..."
-	$(CXX) $(MAIN_OBJECT) -o $@ $(LDFLAGS) $(SDL3_LIBS) $(DL_LIBS)
+	$(CXX) $(CXXFLAGS) $(MAIN_OBJECT) -o $@ $(LDFLAGS) -Wl,/PDB:$(MAIN_PDB) $(SDL3_LIBS) $(DL_LIBS)
 	@echo "Main executable complete: $(MAIN_TARGET)"
 
 # Build the game library
 $(GAME_TARGET): $(GAME_OBJECT) | dirs
 	@echo "Linking $(GAME_TARGET)..."
-	$(CXX) $(SHARED_FLAGS) $(GAME_OBJECT) -o $@ $(LDFLAGS) $(SDL3_LIBS) $(DL_LIBS)
+	$(CXX) $(CXXFLAGS) $(SHARED_FLAGS) $(GAME_OBJECT) -o $@ $(LDFLAGS) -Wl,/PDB:$(GAME_PDB) $(SDL3_LIBS) $(DL_LIBS)
 	@echo "Game library complete: $(GAME_TARGET)"
 
 # Compile main.cpp

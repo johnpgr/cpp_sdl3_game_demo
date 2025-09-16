@@ -28,7 +28,6 @@ struct KeyMapping {
     Array<u8, 2> mouse_buttons{};
 };
 
-
 struct GameState {
     bool quit{};
     bool fps_cap{};

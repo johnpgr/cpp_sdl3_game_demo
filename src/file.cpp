@@ -8,7 +8,7 @@
  */
 u64 file_get_timestamp(const char* path) {
     SDL_PathInfo info{};
-    if (!SDL_GetPathInfo(path, &info)) {
+    if (SDL_GetPathInfo(path, &info)) {
         return info.modify_time;
     }
     SDL_Log("Could not get timestamp for '%s': %s", path, SDL_GetError());
@@ -31,7 +31,7 @@ bool file_exists(const char* path) {
  */
 usize file_get_size(const char* path) {
     SDL_PathInfo info;
-    if (!SDL_GetPathInfo(path, &info)) {
+    if (SDL_GetPathInfo(path, &info)) {
         return (usize)info.size;
     }
     return 0;

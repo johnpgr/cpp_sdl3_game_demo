@@ -11,8 +11,9 @@
 #include "types.h"
 #include "utils.h"
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_keycode.h>
 #include <SDL3/SDL_main.h>
-#include <cstdlib>
+#include <SDL3/SDL_scancode.h>
 
 typedef void GameUpdateFn(GameState*, InputState*, RendererState*);
 static GameUpdateFn* game_update_ptr;
@@ -21,7 +22,7 @@ static void reload_game_dll(Arena* transient_storage) {
     static SDL_SharedObject* game_dll;
     static u64 game_dll_timestamp;
 
-    u64 current_dll_timestamp = file_get_timestamp(DYNLIB("game"));
+    u64 current_dll_timestamp = file_get_timestamp(DYNLIB("libgame"));
 
     if (current_dll_timestamp > game_dll_timestamp) {
         if (game_dll) {
@@ -31,19 +32,19 @@ static void reload_game_dll(Arena* transient_storage) {
         }
 
         while (
-            !copy_file(transient_storage, DYNLIB("game"), DYNLIB("game_load"))
+            !copy_file(transient_storage, DYNLIB("libgame"), DYNLIB("libgame_load"))
         ) {
             SDL_Delay(10);
         }
 
-        game_dll = SDL_LoadObject(DYNLIB("game_load"));
+        game_dll = SDL_LoadObject(DYNLIB("libgame_load"));
         DEBUG_ASSERT(game_dll != nullptr, "Failed to load game dynlib");
 
         game_update_ptr =
             (GameUpdateFn*)SDL_LoadFunction(game_dll, "game_update");
         DEBUG_ASSERT(
             game_update_ptr != nullptr,
-            "Failed to load update_game function"
+            "Failed to load game_update function"
         );
         game_dll_timestamp = current_dll_timestamp;
     }
@@ -141,6 +142,7 @@ static void process_mouse_button_event(SDL_MouseButtonEvent* button_event) {
 }
 
 void game_update(GameState* gs, InputState* is, RendererState* rs) {
+    DEBUG_ASSERT(game_update_ptr != nullptr, "game_update_ptr is null");
     game_update_ptr(gs, is, rs);
 }
 
@@ -158,7 +160,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
     init_renderer_state(&permanent_storage);
 
     SDL_Window* window = SDL_CreateWindow(
-        "Imperfections",
+        "The game",
         INITIAL_WINDOW_WIDTH,
         INITIAL_WINDOW_HEIGHT,
         0

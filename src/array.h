@@ -3,9 +3,9 @@
 #include "types.h"
 
 template <typename T, usize N> struct Array {
-    usize capacity;
-    usize size;
-    T items[N];
+    usize capacity{N};
+    usize size{};
+    T items[N]{};
 
     T& operator[](usize idx);
     usize push(T item);

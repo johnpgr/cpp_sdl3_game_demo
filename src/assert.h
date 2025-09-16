@@ -1,8 +1,6 @@
 #pragma once
 
-#include <stdlib.h>
-#include <SDL3/SDL.h>
-#include "utils.h"
+#include <SDL3/SDL_log.h>
 
 // Function declarations
 bool is_debugger_attached();
