@@ -15,14 +15,6 @@
 static bool just_pressed(GameInputType type) {
     KeyMapping mapping = game_state->key_mappings[type];
 
-    if (type == MOUSE1 || type == MOUSE2) {
-        for (usize idx = 0; idx < mapping.mouse_buttons.size; idx++) {
-            if (input_state->mouse_buttons[mapping.keys[idx]].just_pressed) {
-                return true;
-            }
-        }
-    }
-
     for (usize idx = 0; idx < mapping.keys.size; idx++) {
         if (input_state->keys[mapping.keys[idx]].just_pressed) {
             return true;
@@ -34,14 +26,6 @@ static bool just_pressed(GameInputType type) {
 
 static bool is_down(GameInputType type) {
     KeyMapping mapping = game_state->key_mappings[type];
-
-    if (type == MOUSE1 || type == MOUSE2) {
-        for (usize idx = 0; idx < mapping.mouse_buttons.size; idx++) {
-            if (input_state->mouse_buttons[mapping.keys[idx]].is_down) {
-                return true;
-            }
-        }
-    }
 
     for (usize idx = 0; idx < mapping.keys.size; idx++) {
         if (input_state->keys[mapping.keys[idx]].is_down) {

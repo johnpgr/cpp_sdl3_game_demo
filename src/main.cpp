@@ -6,14 +6,13 @@
 #include "file.cpp"
 #include "game.h"
 #include "input.cpp"
+#include "input.h"
 #include "math3d.cpp"
 #include "renderer.cpp"
 #include "types.h"
 #include "utils.h"
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_keycode.h>
 #include <SDL3/SDL_main.h>
-#include <SDL3/SDL_scancode.h>
 
 typedef void GameUpdateFn(GameState*, InputState*, RendererState*);
 static GameUpdateFn* game_update_ptr;
@@ -53,16 +52,19 @@ static void reload_game_dll(Arena* transient_storage) {
 static void init_game_state(Arena* arena) {
     game_state = arena->push_struct<GameState>();
 
-    game_state->key_mappings[MOVE_UP].keys.push(SDLK_W);
-    game_state->key_mappings[MOVE_UP].keys.push(SDLK_UP);
-    game_state->key_mappings[MOVE_DOWN].keys.push(SDLK_S);
-    game_state->key_mappings[MOVE_DOWN].keys.push(SDLK_DOWN);
-    game_state->key_mappings[MOVE_RIGHT].keys.push(SDLK_D);
-    game_state->key_mappings[MOVE_RIGHT].keys.push(SDLK_RIGHT);
-    game_state->key_mappings[QUIT].keys.push(SDLK_ESCAPE);
+    game_state->key_mappings[MOVE_UP].keys.push(KEY_UP);
+    game_state->key_mappings[MOVE_UP].keys.push(KEY_W);
+    game_state->key_mappings[MOVE_DOWN].keys.push(KEY_DOWN);
+    game_state->key_mappings[MOVE_DOWN].keys.push(KEY_S);
+    game_state->key_mappings[MOVE_RIGHT].keys.push(KEY_RIGHT);
+    game_state->key_mappings[MOVE_RIGHT].keys.push(KEY_D);
+    game_state->key_mappings[MOVE_LEFT].keys.push(KEY_LEFT);
+    game_state->key_mappings[MOVE_LEFT].keys.push(KEY_A);
 
-    game_state->key_mappings[MOUSE1].mouse_buttons.push(SDL_BUTTON_LEFT);
-    game_state->key_mappings[MOUSE2].mouse_buttons.push(SDL_BUTTON_RIGHT);
+    game_state->key_mappings[QUIT].keys.push(KEY_ESCAPE);
+
+    game_state->key_mappings[MOUSE1].keys.push(KEY_MOUSE_LEFT);
+    game_state->key_mappings[MOUSE2].keys.push(KEY_MOUSE_RIGHT);
 }
 
 static void init_input_state(Arena* arena) {
@@ -90,21 +92,15 @@ static void update_input_begin_frame() {
         input_state->keys[i].half_transition_count = 0;
     }
 
-    for (i32 i = 0; i < MOUSE_BUTTON_COUNT; i++) {
-        input_state->mouse_buttons[i].just_pressed = false;
-        input_state->mouse_buttons[i].just_released = false;
-        input_state->mouse_buttons[i].half_transition_count = 0;
-    }
-
     input_state->prev_mouse_pos = input_state->mouse_pos;
     input_state->prev_mouse_pos_world = input_state->mouse_pos_world;
 }
 
 static void process_key_event(SDL_KeyboardEvent* key_event) {
-    SDL_Keycode keycode = key_event->key;
-    if (keycode < 0 || keycode >= KEY_COUNT) return;
+    SDL_Scancode scancode = key_event->scancode;
+    if (scancode < 0 || scancode >= (SDL_Scancode)KEY_COUNT) return;
 
-    Key* key = &input_state->keys[keycode];
+    Key* key = &input_state->keys[(KeyCodeId)scancode];
     bool was_down = key->is_down;
     key->is_down = (key_event->type == SDL_EVENT_KEY_DOWN);
 
@@ -128,9 +124,9 @@ static void process_mouse_motion(SDL_MouseMotionEvent* motion_event) {
 
 static void process_mouse_button_event(SDL_MouseButtonEvent* button_event) {
     u8 button = button_event->button;
-    if (button >= MOUSE_BUTTON_COUNT) return;
+    if (button > 3) return;
 
-    Key* mouse_button = &input_state->mouse_buttons[button];
+    Key* mouse_button = &input_state->keys[KEY_MOUSE_LEFT + button - 1];
     bool was_down = mouse_button->is_down;
     mouse_button->is_down = (button_event->type == SDL_EVENT_MOUSE_BUTTON_DOWN);
 

@@ -1,14 +1,13 @@
 #pragma once
 
-#include "SDL3/SDL_keycode.h"
 #include "array.h"
 #include "input.h"
-#include "renderer.h"
-#include "types.h"
-#include "utils.h"
 #include "math3d.h"
+#include "renderer.h"
+#include "utils.h"
+#include <SDL3/SDL_scancode.h>
 
-enum GameInputType : u8 {
+enum GameInputType {
     MOVE_LEFT,
     MOVE_RIGHT,
     MOVE_UP,
@@ -24,8 +23,7 @@ enum GameInputType : u8 {
 };
 
 struct KeyMapping {
-    Array<SDL_Keycode, 3> keys{};
-    Array<u8, 2> mouse_buttons{};
+    Array<KeyCodeId, 3> keys{};
 };
 
 struct GameState {

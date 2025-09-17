@@ -3,7 +3,7 @@
 #include "math3d.h"
 #include "types.h"
 
-enum SpriteId : u8 {
+enum SpriteId {
     SPRITE_WHITE,
     SPRITE_DICE,
 
