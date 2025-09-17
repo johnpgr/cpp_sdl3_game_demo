@@ -30,9 +30,11 @@ static void reload_game_dll(Arena* transient_storage) {
             SDL_Log("Unloaded old game dynlib");
         }
 
-        while (
-            !copy_file(transient_storage, DYNLIB("libgame"), DYNLIB("libgame_load"))
-        ) {
+        while (!copy_file(
+            transient_storage,
+            DYNLIB("libgame"),
+            DYNLIB("libgame_load")
+        )) {
             SDL_Delay(10);
         }
 
@@ -83,6 +85,50 @@ static void init_renderer_state(Arena* arena) {
     renderer_state->ui_camera.dimensions[0] = HEIGHT;
     renderer_state->ui_camera.position[0] = 160;
     renderer_state->ui_camera.position[0] = -90;
+
+    renderer_state->window = SDL_CreateWindow(
+        "The game",
+        INITIAL_WINDOW_WIDTH,
+        INITIAL_WINDOW_HEIGHT,
+        SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE
+    );
+
+    renderer_state->device = SDL_CreateGPUDevice(
+        SDL_GPU_SHADERFORMAT_DXIL | SDL_GPU_SHADERFORMAT_SPIRV |
+            SDL_GPU_SHADERFORMAT_MSL,
+#ifdef DEBUG
+        true,
+#else
+        false,
+#endif
+        nullptr
+    );
+
+    const char* device_driver = SDL_GetGPUDeviceDriver(renderer_state->device);
+    SDL_Log("Created GPU Device with driver %s\n", device_driver);
+
+    if (!SDL_ClaimWindowForGPUDevice(
+            renderer_state->device,
+            renderer_state->window
+        )) {
+        SDL_Log("Failed to claim window for GPU Device %s\n", SDL_GetError());
+        game_state->quit = true;
+        return;
+    }
+
+    SDL_Surface* texture_atlas = load_image("TEXTURE_ATLAS.png");
+    if (!texture_atlas) {
+        SDL_Log("Failed to load TEXTURE_ATLAS.png");
+        game_state->quit = true;
+        return;
+    }
+
+    SDL_GPUTexture* texture = gpu_texture_from_surface(texture_atlas);
+    if (!texture) {
+        SDL_Log("Failed to create GPU texture from surface");
+        game_state->quit = true;
+        return;
+    }
 }
 
 static void update_input_begin_frame() {
@@ -151,19 +197,23 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
         permanent_storage.destroy();
     };
 
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+
+    defer {
+        SDL_ReleaseWindowFromGPUDevice(
+            renderer_state->device,
+            renderer_state->window
+        );
+        SDL_DestroyWindow(renderer_state->window);
+        SDL_DestroyGPUDevice(renderer_state->device);
+        SDL_Quit();
+    };
+
     init_game_state(&permanent_storage);
     init_input_state(&permanent_storage);
     init_renderer_state(&permanent_storage);
 
-    SDL_Window* window = SDL_CreateWindow(
-        "The game",
-        INITIAL_WINDOW_WIDTH,
-        INITIAL_WINDOW_HEIGHT,
-        0
-    );
-    defer {
-        SDL_DestroyWindow(window);
-    };
+    SDL_ShowWindow(renderer_state->window);
 
     SDL_Event event{};
     while (!game_state->quit) {
