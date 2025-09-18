@@ -50,24 +50,18 @@ export void game_update(GameState* gs, InputState* is, SpriteAtlas* sa, Renderer
     }
     if (is_down(MOVE_LEFT)) {
         game_state->player_position.x -= 1;
-        SDL_Log("MOVE_LEFT");
     }
     if (is_down(MOVE_RIGHT)) {
         game_state->player_position.x += 1;
-        SDL_Log("MOVE_RIGHT");
     }
     if (is_down(MOVE_UP)) {
         game_state->player_position.y -= 1;
-        SDL_Log("MOVE_UP");
     }
     if (is_down(MOVE_DOWN)) {
         game_state->player_position.y += 1;
-        SDL_Log("MOVE_DOWN");
     }
     if (is_down(MOUSE1)) {
-        SDL_Log("MOUSE1");
     }
     if (is_down(MOUSE2)) {
-        SDL_Log("MOUSE2");
     }
 }

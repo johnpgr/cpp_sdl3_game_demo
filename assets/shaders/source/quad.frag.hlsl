@@ -6,7 +6,7 @@ struct FSInput {
 Texture2D<float4> texture_atlas : register(t0, space2);
 SamplerState texture_sampler : register(s0, space2);
 
-float4 main(FSInput input) {
+float4 main(FSInput input) : SV_Target0 {
     // Sample texture using point sampling (equivalent to texelFetch in OpenGL)
     int2 texture_coords = int2(input.texture_coords);
     float4 texture_color = texture_atlas.Sample(texture_sampler, input.texture_coords);

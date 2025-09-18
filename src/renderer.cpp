@@ -474,6 +474,7 @@ void RendererState::render() {
 
     SDL_SubmitGPUCommandBuffer(cmdbuf);
     SDL_ReleaseGPUTexture(device, depth_texture);
+    transforms.clear();
 }
 
 /**
