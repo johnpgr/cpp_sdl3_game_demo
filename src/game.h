@@ -4,6 +4,7 @@
 #include "input.h"
 #include "math3d.h"
 #include "renderer.h"
+#include "sprite_atlas.h"
 #include "utils.h"
 #include <SDL3/SDL_scancode.h>
 
@@ -35,4 +36,4 @@ struct GameState {
 
 static GameState* game_state{};
 
-export void game_update(GameState* gs, InputState* is, RendererState* rs);
+export void game_update(GameState* gs, InputState* is, SpriteAtlas* sa, RendererState* rs);

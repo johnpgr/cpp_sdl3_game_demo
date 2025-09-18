@@ -1,10 +1,13 @@
 #pragma once
 
+#include "SDL3/SDL_events.h"
+#include "arena.h"
 #include "math3d.h"
 #include "types.h"
 #include <SDL3/SDL_oldnames.h>
 #include <SDL3/SDL_scancode.h>
 
+// clang-format off
 enum KeyCodeId {
     KEY_A              = SDL_SCANCODE_A,
     KEY_B              = SDL_SCANCODE_B,
@@ -118,6 +121,7 @@ enum KeyCodeId {
 
     KEY_COUNT          = SDL_SCANCODE_COUNT,
 };
+// clang-format on
 
 struct Key {
     bool is_down{};
@@ -141,9 +145,15 @@ struct InputState {
 
     Key keys[KEY_COUNT]{};
 
+    void begin_frame();
+    void process_key_event(SDL_KeyboardEvent* key_event);
+    void process_mouse_motion(SDL_MouseMotionEvent* motion_event);
+    void process_mouse_button_event(SDL_MouseButtonEvent* button_event);
     bool key_pressed_this_frame(KeyCodeId scan_code);
     bool key_released_this_frame(KeyCodeId scan_code);
     bool key_is_down(KeyCodeId scan_code);
 };
 
 static InputState* input_state{};
+
+void init_input_state(Arena* arena);

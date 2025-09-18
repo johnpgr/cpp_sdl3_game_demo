@@ -1,25 +1,20 @@
-Texture2D texture_atlas : register(t0);
-SamplerState texture_sampler : register(s0);
-
-struct PSInput {
+struct FSInput {
     float4 position : SV_Position;
     float2 texture_coords : TEXCOORD0;
 };
 
-struct PSOutput {
-    float4 color : SV_Target0;
-};
+Texture2D<float4> texture_atlas : register(t0, space2);
+SamplerState texture_sampler : register(s0, space2);
 
-PSOutput main(PSInput input) {
-    PSOutput output;
+float4 main(FSInput input) {
+    // Sample texture using point sampling (equivalent to texelFetch in OpenGL)
+    int2 texture_coords = int2(input.texture_coords);
+    float4 texture_color = texture_atlas.Sample(texture_sampler, input.texture_coords);
     
-    float4 texture_color = texture_atlas.Load(int3(int2(input.texture_coords), 0));
-
+    // Discard transparent pixels
     if (texture_color.a == 0.0) {
         discard;
     }
-
-    output.color = texture_color;
     
-    return output;
+    return texture_color;
 }

@@ -2,14 +2,13 @@
 #include "arena.cpp"
 #include "array.cpp"
 #include "assert.cpp"
-#include "assets.cpp"
-#include "consts.h"
+#include "assets.h"
 #include "file.cpp"
 #include "input.cpp"
 #include "math3d.cpp"
 #include "renderer.cpp"
+#include "sprite_atlas.cpp"
 #include "types.h"
-#include "utils.h"
 #include <SDL3/SDL.h>
 
 static bool just_pressed(GameInputType type) {
@@ -36,12 +35,15 @@ static bool is_down(GameInputType type) {
     return false;
 }
 
-export void game_update(GameState* gs, InputState* is, RendererState* rs) {
+export void game_update(GameState* gs, InputState* is, SpriteAtlas* sa, RendererState* rs) {
     if (gs != game_state) {
         game_state = gs;
         input_state = is;
+        sprite_atlas = sa;
         renderer_state = rs;
     }
+
+    draw_sprite(SPRITE_DICE, game_state->player_position);
 
     if (is_down(QUIT)) {
         game_state->quit = true;

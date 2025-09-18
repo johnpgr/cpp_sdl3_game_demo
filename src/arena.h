@@ -14,7 +14,7 @@ struct Arena {
     // Constructor: Initializes the arena with an initial block capacity.
     // New blocks will be at least this size, or larger if a single allocation
     // request exceeds it.
-    Arena(usize initial_block_capacity = 4096);
+    Arena(usize initial_block_capacity = 4096, bool can_grow = true);
 
     // Destructor: Frees all memory blocks owned by the arena.
     void destroy();
@@ -50,6 +50,7 @@ struct Arena {
     template <typename T> T* push_struct_zero(usize alignment = alignof(T));
 
   private:
+    bool can_grow;
     // Pointer to the current active block for allocations*
     ArenaBlock* current_block;
     // Accumulative logical size of all allocations

@@ -2,6 +2,8 @@
 
 #include "types.h"
 
+struct ivec2;
+
 struct vec2 {
     union {
         f32 values[2];
@@ -13,6 +15,7 @@ struct vec2 {
     vec2();
     vec2(f32 v);
     vec2(f32 x, f32 y);
+    vec2(const ivec2& v);
 
     f32& operator[](i32 i);
     const f32& operator[](i32 i) const;
@@ -20,13 +23,17 @@ struct vec2 {
     vec2 operator+(const vec2& v) const;
     vec2 operator-(const vec2& v) const;
     vec2 operator*(f32 s) const;
+    vec2 operator*(vec2 s) const;
     vec2 operator/(f32 s) const;
+    vec2 operator/(vec2 s) const;
     vec2 operator-() const;
 
     vec2& operator+=(const vec2& v);
     vec2& operator-=(const vec2& v);
     vec2& operator*=(f32 s);
+    vec2& operator*=(vec2 s);
     vec2& operator/=(f32 s);
+    vec2& operator/=(vec2 s);
 
     f32 length() const;
     f32 length_squared() const;
@@ -54,13 +61,17 @@ struct ivec2 {
     ivec2 operator+(const ivec2& v) const;
     ivec2 operator-(const ivec2& v) const;
     ivec2 operator*(i32 s) const;
+    ivec2 operator*(ivec2 s) const;
     ivec2 operator/(i32 s) const;
+    ivec2 operator/(ivec2 s) const;
     ivec2 operator-() const;
 
     ivec2& operator+=(const ivec2& v);
     ivec2& operator-=(const ivec2& v);
     ivec2& operator*=(i32 s);
+    ivec2& operator*=(ivec2 s);
     ivec2& operator/=(i32 s);
+    ivec2& operator/=(ivec2 s);
 
     bool operator==(const ivec2& v) const;
     bool operator!=(const ivec2& v) const;
@@ -68,7 +79,6 @@ struct ivec2 {
     f32 length() const;
     i32 length_squared() const;
     i32 dot(const ivec2& v) const;
-    vec2 to_vec2() const;
 };
 
 struct vec3 {

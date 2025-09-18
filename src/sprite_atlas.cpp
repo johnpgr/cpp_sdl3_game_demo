@@ -1,0 +1,287 @@
+#include "sprite_atlas.h"
+
+#include "assert.h"
+#include "renderer.h"
+#include "utils.h"
+#include <SDL3_image/SDL_image.h>
+
+bool init_sprite_atlas(Arena* arena, const char* atlas_filename) {
+    auto atlas = arena->push_struct<SpriteAtlas>();
+    auto device = renderer_state->device;
+    DEBUG_ASSERT(
+        device != nullptr,
+        "GPU device is null on init_sprite_atlas()"
+    );
+
+    SDL_Surface* atlas_surface = load_image(atlas_filename, 4);
+    if (!atlas_surface) {
+        SDL_Log("Failed to load sprite atlas: %s", atlas_filename);
+        return false;
+    }
+    defer {
+        SDL_DestroySurface(atlas_surface);
+    };
+
+    // Store atlas dimensions
+    atlas->atlas_size = ivec2(atlas_surface->w, atlas_surface->h);
+    SDL_Log(
+        "Loaded sprite atlas: %dx%d",
+        atlas->atlas_size.x,
+        atlas->atlas_size.y
+    );
+
+    // Create GPU texture from surface
+    atlas->texture = gpu_texture_from_surface(atlas_surface);
+    if (!atlas->texture) {
+        SDL_Log("Failed to create GPU texture from atlas surface");
+        return false;
+    }
+
+    // Create sampler for pixel art (nearest neighbor filtering)
+    SDL_GPUSamplerCreateInfo sampler_info{
+        .min_filter = SDL_GPU_FILTER_NEAREST,
+        .mag_filter = SDL_GPU_FILTER_NEAREST,
+        .mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST,
+        .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+        .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+    };
+
+    atlas->sampler = SDL_CreateGPUSampler(device, &sampler_info);
+    if (!atlas->sampler) {
+        SDL_Log("Failed to create atlas sampler: %s", SDL_GetError());
+        SDL_ReleaseGPUTexture(device, atlas->texture);
+        return false;
+    }
+
+    sprite_atlas = atlas;
+    return true;
+}
+
+void register_sprites() {
+    DEBUG_ASSERT(
+        sprite_atlas != nullptr,
+        "sprite_atlas is null on register_sprites()"
+    );
+
+    // Register sprites with their atlas coordinates
+    sprite_atlas->register_sprite_at_id(
+        SPRITE_WHITE,
+        ivec2(0, 0),
+        ivec2(1, 1),
+        "white_pixel"
+    );
+    sprite_atlas->register_sprite_at_id(
+        SPRITE_DICE,
+        ivec2(16, 0),
+        ivec2(16, 16),
+        "dice"
+    );
+
+    SDL_Log("Registered %zu sprites in atlas", sprite_atlas->sprites.size);
+}
+
+void SpriteAtlas::destroy() {
+    auto device = renderer_state->device;
+
+    if (texture) {
+        SDL_ReleaseGPUTexture(device, texture);
+        texture = nullptr;
+    }
+    if (sampler) {
+        SDL_ReleaseGPUSampler(device, sampler);
+        sampler = nullptr;
+    }
+
+    sprites.clear();
+}
+
+SpriteId SpriteAtlas::register_sprite(
+    ivec2 atlas_offset,
+    ivec2 size,
+    const char* name
+) {
+    // Validate coordinates
+    DEBUG_ASSERT(
+        atlas_offset.x >= 0 && atlas_offset.y >= 0,
+        "Invalid atlas offset"
+    );
+    DEBUG_ASSERT(
+        atlas_offset.x + size.x <= atlas_size.x,
+        "Sprite extends beyond atlas width"
+    );
+    DEBUG_ASSERT(
+        atlas_offset.y + size.y <= atlas_size.y,
+        "Sprite extends beyond atlas height"
+    );
+    DEBUG_ASSERT(size.x > 0 && size.y > 0, "Invalid sprite size");
+
+    SpriteAtlasEntry entry{};
+    entry.atlas_offset = atlas_offset;
+    entry.size = size;
+    entry.name = name;
+
+    // Compute normalized UV coordinates
+    entry.uv_min = vec2(atlas_offset) / vec2(atlas_size);
+    entry.uv_max = vec2(atlas_offset + size) / vec2(atlas_size);
+
+    sprites.push(entry);
+    return (SpriteId)(sprites.size - 1);
+}
+
+void SpriteAtlas::register_sprite_at_id(
+    SpriteId id,
+    ivec2 atlas_offset,
+    ivec2 size,
+    const char* name
+) {
+    // Ensure the array is large enough
+    while (sprites.size <= (usize)id) {
+        sprites.push(SpriteAtlasEntry{}); // Add empty entries
+    }
+
+    // Validate coordinates
+    DEBUG_ASSERT(
+        atlas_offset.x >= 0 && atlas_offset.y >= 0,
+        "Invalid atlas offset"
+    );
+    DEBUG_ASSERT(
+        atlas_offset.x + size.x <= atlas_size.x,
+        "Sprite extends beyond atlas width"
+    );
+    DEBUG_ASSERT(
+        atlas_offset.y + size.y <= atlas_size.y,
+        "Sprite extends beyond atlas height"
+    );
+    DEBUG_ASSERT(size.x > 0 && size.y > 0, "Invalid sprite size");
+
+    SpriteAtlasEntry& entry = sprites.items[id];
+    entry.atlas_offset = atlas_offset;
+    entry.size = size;
+    entry.name = name;
+
+    // Compute normalized UV coordinates
+    entry.uv_min = vec2(atlas_offset) / vec2(atlas_size);
+    entry.uv_max = vec2(atlas_offset + size) / vec2(atlas_size);
+}
+
+void SpriteAtlas::compute_uv_coords(
+    SpriteId sprite_id,
+    vec2* uv_min,
+    vec2* uv_max
+) const {
+    DEBUG_ASSERT(is_valid_sprite_id(sprite_id), "Invalid sprite ID");
+
+    const SpriteAtlasEntry& entry = sprites.items[sprite_id];
+    *uv_min = entry.uv_min;
+    *uv_max = entry.uv_max;
+}
+
+SpriteAtlasEntry SpriteAtlas::get_sprite_entry(SpriteId sprite_id) const {
+    DEBUG_ASSERT(is_valid_sprite_id(sprite_id), "Invalid sprite ID");
+    return sprites.items[sprite_id];
+}
+
+bool SpriteAtlas::is_valid_sprite_id(SpriteId sprite_id) const {
+    return sprite_id >= 0 && (usize)sprite_id < sprites.size;
+}
+
+/**
+ * @brief Queues a sprite for rendering at the specified world position with
+ * original size.
+ *
+ * Retrieves sprite data from the global sprite atlas and creates a transform
+ * for instanced rendering. The sprite is positioned so that the specified
+ * coordinates represent the center of the sprite.
+ *
+ * @param sprite_id ID of the sprite in the sprite atlas
+ * @param pos World position where the sprite center should be placed
+ *
+ * @note Requires sprite_atlas and renderer_state to be initialized
+ * @note Sprite position is offset by half the sprite size to convert from
+ * center to top-left
+ * @note Transform is added to the render queue for the current frame
+ */
+void draw_sprite(SpriteId sprite_id, vec2 pos) {
+    DEBUG_ASSERT(
+        sprite_atlas != nullptr,
+        "sprite_atlas is null at draw_sprite()"
+    );
+    DEBUG_ASSERT(
+        renderer_state != nullptr,
+        "renderer_state is null at draw_sprite()"
+    );
+
+    SpriteAtlasEntry sprite = sprite_atlas->get_sprite_entry(sprite_id);
+
+    Transform transform{
+        .pos = pos - vec2(sprite.size) / 2.0f,
+        .size = vec2(sprite.size),
+        .uv_min = sprite.uv_min,
+        .uv_max = sprite.uv_max,
+    };
+
+    renderer_state->transforms.push(transform);
+}
+
+/**
+ * @brief Integer position overload for draw_sprite.
+ *
+ * Convenience overload that converts integer coordinates to floating point
+ * and calls the main draw_sprite function.
+ *
+ * @param sprite_id ID of the sprite in the sprite atlas
+ * @param pos World position as integer coordinates (sprite center)
+ */
+void draw_sprite(SpriteId sprite_id, ivec2 pos) {
+    draw_sprite(sprite_id, vec2(pos));
+}
+
+/**
+ * @brief Queues a sprite for rendering with custom size scaling.
+ *
+ * Similar to the basic draw_sprite but allows overriding the sprite size for
+ * scaling effects. The original UV coordinates from the sprite atlas are
+ * preserved, so the entire sprite texture is mapped to the custom size.
+ *
+ * @param sprite_id ID of the sprite in the sprite atlas
+ * @param pos World position where the sprite center should be placed
+ * @param size Custom size for rendering (overrides atlas size)
+ *
+ * @note Maintains original UV coordinates for proper texture sampling
+ * @note Useful for scaling sprites without creating new atlas entries
+ */
+void draw_sprite(SpriteId sprite_id, vec2 pos, vec2 size) {
+    DEBUG_ASSERT(
+        sprite_atlas != nullptr,
+        "sprite_atlas is null at draw_sprite()"
+    );
+    DEBUG_ASSERT(
+        renderer_state != nullptr,
+        "renderer_state is null at draw_sprite()"
+    );
+
+    SpriteAtlasEntry sprite = sprite_atlas->get_sprite_entry(sprite_id);
+
+    Transform transform{
+        .pos = pos - size / 2.0f,
+        .size = size,
+        .uv_min = sprite.uv_min,
+        .uv_max = sprite.uv_max,
+    };
+
+    renderer_state->transforms.push(transform);
+}
+
+/**
+ * @brief Integer position overload for draw_sprite with custom sizing.
+ *
+ * Convenience overload that converts integer coordinates to floating point
+ * and calls the main draw_sprite function with custom size.
+ *
+ * @param sprite_id ID of the sprite in the sprite atlas
+ * @param pos World position as integer coordinates (sprite center)
+ * @param size Custom size for rendering
+ */
+void draw_sprite(SpriteId sprite_id, ivec2 pos, vec2 size) {
+    draw_sprite(sprite_id, vec2(pos), size);
+}

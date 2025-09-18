@@ -1,20 +1,13 @@
 struct Transform {
-    int2 atlas_offset;
-    int2 sprite_size;
     float2 pos;
     float2 size;
+    float2 uv_min;    // Normalized UV coordinates
+    float2 uv_max;    // Normalized UV coordinates
 };
 
-StructuredBuffer<Transform> transforms : register(t0);
-
-cbuffer Constants : register(b0) {
-    float2 screen_size;
-    float4x4 camera_matrix;
-}
-
 struct VSInput {
-    uint vertexID : SV_VertexID;
-    uint instanceID : SV_InstanceID;
+    float2 position : POSITION;    // Unit quad vertex (0-1 range)
+    float2 uv : TEXCOORD0;         // Unit quad UV (0-1 range)
 };
 
 struct VSOutput {
@@ -22,38 +15,23 @@ struct VSOutput {
     float2 texture_coords : TEXCOORD0;
 };
 
-VSOutput main(VSInput input) {
+StructuredBuffer<Transform> transforms : register(t0, space0);
+
+cbuffer Constants : register(b0, space1) {
+    float4x4 camera_matrix;
+}
+
+VSOutput main(VSInput input, uint instance_id : SV_InstanceID) {
     VSOutput output;
     
-    Transform transform = transforms[input.instanceID];
+    Transform transform = transforms[instance_id];
 
-    float2 vertices[4] = {
-        transform.pos,                                          // TL
-        float2(transform.pos + float2(0.0, transform.size.y)),  // BL
-        float2(transform.pos + float2(transform.size.x, 0.0)),  // TR
-        transform.pos + transform.size                          // BR
-    };
+    // Scale and translate unit quad to world position
+    float2 world_pos = transform.pos + input.position * transform.size;
+    output.position = mul(camera_matrix, float4(world_pos, 0.0f, 1.0f));
 
-    int indices[6] = { 0, 1, 2, 2, 1, 3 };
-
-    float left   = transform.atlas_offset.x;
-    float top    = transform.atlas_offset.y;
-    float right  = transform.atlas_offset.x + transform.sprite_size.x;
-    float bottom = transform.atlas_offset.y + transform.sprite_size.y;
-
-    float2 texture_coords[4] = {
-        float2(left, top),
-        float2(left, bottom),
-        float2(right, top),
-        float2(right, bottom)
-    };
-
-    float2 vertex_pos = vertices[indices[input.vertexID]];
-    // vertex_pos.y = -vertex_pos.y + screen_size.y;
-    // vertex_pos = 2.0 * (vertex_pos / screen_size) - 1.0;
-    output.position = mul(camera_matrix, float4(vertex_pos, 0.0, 1.0));
-
-    output.texture_coords = texture_coords[indices[input.vertexID]];
+    // Interpolate between min and max UV coordinates
+    output.texture_coords = lerp(transform.uv_min, transform.uv_max, input.uv);
     
     return output;
 }

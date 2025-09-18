@@ -14,4 +14,5 @@ template <typename T, usize N> struct Array {
     usize insert_at(usize idx, T item);
     void clear();
     bool is_full();
+    bool is_empty();
 };

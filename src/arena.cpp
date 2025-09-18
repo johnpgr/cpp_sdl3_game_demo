@@ -2,7 +2,7 @@
 #include "assert.h"
 
 #include <SDL3/SDL.h>
-#include <string.h>  // For std::memset
+#include <string.h> // For std::memset
 
 // Helper for aligning memory
 inline void* align_ptr(void* ptr, usize alignment) {
@@ -11,8 +11,8 @@ inline void* align_ptr(void* ptr, usize alignment) {
     return (void*)(aligned_addr);
 }
 
-Arena::Arena(usize initial_block_capacity)
-    : current_block(nullptr), total_used_size(0),
+Arena::Arena(usize initial_block_capacity, bool can_grow)
+    : can_grow(can_grow), current_block(nullptr), total_used_size(0),
       initial_block_capacity(initial_block_capacity) {
     DEBUG_ASSERT(
         initial_block_capacity != 0,
@@ -55,6 +55,15 @@ void* Arena::push(usize size, usize alignment) {
 
     // Check if current block has enough space
     if (current_block->used + padded_size > current_block->capacity) {
+        // If the arena is not growable, we cannot allocate a new block.
+        if (!can_grow) {
+            DEBUG_ASSERT(
+                false,
+                "Arena is not growable and has run out of memory."
+            );
+            return nullptr;
+        }
+
         // Current block is full, grow the arena by allocating a new block
         usize new_block_capacity = SDL_max(
             initial_block_capacity,

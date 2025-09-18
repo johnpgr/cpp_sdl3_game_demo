@@ -44,3 +44,4 @@ template <typename T, usize N> usize Array<T, N>::insert_at(usize idx, T item) {
 template <typename T, usize N> void Array<T, N>::clear() { size = 0; }
 
 template <typename T, usize N> bool Array<T, N>::is_full() { return size == N; }
+template <typename T, usize N> bool Array<T, N>::is_empty() { return size == 0; }

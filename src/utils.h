@@ -42,3 +42,9 @@ template <typename F> Defer<F> operator+(defer_dummy, F&& f) {
 #elif defined(__APPLE__)
 #define DYNLIB(name) "lib" name ".dylib"
 #endif
+
+#ifdef DEBUG
+#define debug_mode true
+#else
+#define debug_mode false
+#endif

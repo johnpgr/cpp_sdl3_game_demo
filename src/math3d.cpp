@@ -11,6 +11,9 @@ vec2::vec2(f32 v) : x(v), y(v) {
 vec2::vec2(f32 x, f32 y) : x(x), y(y) {
 }
 
+vec2::vec2(const ivec2& v) : x((f32)v.x), y((f32)v.y) {
+}
+
 f32& vec2::operator[](i32 i) {
     return values[i];
 }
@@ -31,8 +34,16 @@ vec2 vec2::operator*(f32 s) const {
     return vec2(x * s, y * s);
 }
 
+vec2 vec2::operator*(vec2 s) const {
+    return vec2(x * s.x, y * s.y);
+}
+
 vec2 vec2::operator/(f32 s) const {
     return vec2(x / s, y / s);
+}
+
+vec2 vec2::operator/(vec2 s) const {
+    return vec2(x / s.x, y / s.y);
 }
 
 vec2 vec2::operator-() const {
@@ -57,9 +68,21 @@ vec2& vec2::operator*=(f32 s) {
     return *this;
 }
 
+vec2& vec2::operator*=(vec2 s) {
+    x *= s.x;
+    y *= s.y;
+    return *this;
+}
+
 vec2& vec2::operator/=(f32 s) {
     x /= s;
     y /= s;
+    return *this;
+}
+
+vec2& vec2::operator/=(vec2 s) {
+    x /= s.x;
+    y /= s.y;
     return *this;
 }
 
@@ -117,8 +140,16 @@ ivec2 ivec2::operator*(i32 s) const {
     return ivec2(x * s, y * s);
 }
 
+ivec2 ivec2::operator*(ivec2 s) const {
+    return ivec2(x * s.x, y * s.y);
+}
+
 ivec2 ivec2::operator/(i32 s) const {
     return ivec2(x / s, y / s);
+}
+
+ivec2 ivec2::operator/(ivec2 s) const {
+    return ivec2(x / s.x, y / s.y);
 }
 
 ivec2 ivec2::operator-() const {
@@ -143,9 +174,21 @@ ivec2& ivec2::operator*=(i32 s) {
     return *this;
 }
 
+ivec2& ivec2::operator*=(ivec2 s) {
+    x *= s.x;
+    y *= s.y;
+    return *this;
+}
+
 ivec2& ivec2::operator/=(i32 s) {
     x /= s;
     y /= s;
+    return *this;
+}
+
+ivec2& ivec2::operator/=(ivec2 s) {
+    x /= s.x;
+    y /= s.y;
     return *this;
 }
 
@@ -167,10 +210,6 @@ i32 ivec2::length_squared() const {
 
 i32 ivec2::dot(const ivec2& v) const {
     return x * v.x + y * v.y;
-}
-
-vec2 ivec2::to_vec2() const {
-    return vec2((f32)x, (f32)y);
 }
 
 // vec3 implementations
