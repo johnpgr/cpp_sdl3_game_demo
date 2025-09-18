@@ -35,7 +35,7 @@ static bool is_down(GameInputType type) {
     return false;
 }
 
-export void game_update(GameState* gs, InputState* is, SpriteAtlas* sa, RendererState* rs) {
+EXPORT_FN void game_update(GameState* gs, InputState* is, SpriteAtlas* sa, RendererState* rs) {
     if (gs != game_state) {
         game_state = gs;
         input_state = is;
@@ -43,13 +43,10 @@ export void game_update(GameState* gs, InputState* is, SpriteAtlas* sa, Renderer
         renderer_state = rs;
     }
 
-    for (auto i = 0; i < 1000; i ++) {
-        draw_sprite(SPRITE_DICE, game_state->player_position + ivec2(i));
-    }
+    draw_sprite(SPRITE_DICE, game_state->player_position);
 
     if (just_pressed(TOGGLE_FPS_CAP)) {
         game_state->fps_cap = !game_state->fps_cap;
-        SDL_Log("FPS CAP: %s", game_state->fps_cap ? "Enabled" : "Disabled");
     }
 
     if (is_down(QUIT)) {
@@ -67,8 +64,10 @@ export void game_update(GameState* gs, InputState* is, SpriteAtlas* sa, Renderer
     if (is_down(MOVE_DOWN)) {
         game_state->player_position.y += 1;
     }
-    if (is_down(MOUSE1)) {
+    if (just_pressed(MOUSE1)) {
+        ivec2 world_pos = screen_to_world(input_state->mouse_pos);
+        draw_sprite(SPRITE_WHITE, world_pos, vec2(8));
     }
-    if (is_down(MOUSE2)) {
+    if (just_pressed(MOUSE2)) {
     }
 }

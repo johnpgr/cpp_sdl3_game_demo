@@ -45,7 +45,7 @@ else
     endif
 endif
 
-# SDL3 and SDL3_image configuration
+# SDL3, SDL3_image and SDL3_ttf configuration
 ifeq ($(PLATFORM),Windows)
     # Windows: Assume SDL3 is installed in a standard location or set SDL3_DIR
     ifdef SDL3_DIR
@@ -54,12 +54,17 @@ ifeq ($(PLATFORM),Windows)
         # SDL3_image is typically in the same directory structure
         SDL3_IMAGE_INCLUDE := -I$(SDL3_DIR)/include
         SDL3_IMAGE_LIBS := -L$(SDL3_DIR)/lib -lSDL3_image
+        # SDL3_ttf is typically in the same directory structure
+        SDL3_TTF_INCLUDE := -I$(SDL3_DIR)/include
+        SDL3_TTF_LIBS := -L$(SDL3_DIR)/lib -lSDL3_ttf
     else
         # Default Windows paths - adjust as needed
         SDL3_INCLUDE := -IC:/SDKs/SDL3/include
         SDL3_LIBS := -LC:/SDKs/SDL3/lib -lSDL3
         SDL3_IMAGE_INCLUDE := -IC:/SDKs/SDL3_image/include
         SDL3_IMAGE_LIBS := -LC:/SDKs/SDL3_image/lib -lSDL3_image
+        SDL3_TTF_INCLUDE := -IC:/SDKs/SDL3_ttf/include
+        SDL3_TTF_LIBS := -LC:/SDKs/SDL3_ttf/lib -lSDL3_ttf
     endif
 else
     # Unix: Use pkg-config
@@ -67,6 +72,8 @@ else
     SDL3_LIBS := $(shell pkg-config --libs sdl3 2>/dev/null)
     SDL3_IMAGE_INCLUDE := $(shell pkg-config --cflags SDL3_image 2>/dev/null)
     SDL3_IMAGE_LIBS := $(shell pkg-config --libs SDL3_image 2>/dev/null)
+    SDL3_TTF_INCLUDE := $(shell pkg-config --cflags SDL3_ttf 2>/dev/null)
+    SDL3_TTF_LIBS := $(shell pkg-config --libs SDL3_ttf 2>/dev/null)
 
     # Fallback if pkg-config fails
     ifeq ($(SDL3_INCLUDE),)
@@ -75,17 +82,25 @@ else
     ifeq ($(SDL3_LIBS),)
         SDL3_LIBS := -lSDL3
     endif
+
     ifeq ($(SDL3_IMAGE_INCLUDE),)
         SDL3_IMAGE_INCLUDE := -I/usr/local/include/SDL3 -I/usr/include/SDL3
     endif
     ifeq ($(SDL3_IMAGE_LIBS),)
         SDL3_IMAGE_LIBS := -lSDL3_image
     endif
+
+    ifeq ($(SDL3_TTF_INCLUDE),)
+        SDL3_TTF_INCLUDE := -I/usr/local/include/SDL3 -I/usr/include/SDL3
+    endif
+    ifeq ($(SDL3_TTF_LIBS),)
+        SDL3_TTF_LIBS := -lSDL3_ttf
+    endif
 endif
 
 # Combine SDL libraries
-SDL_INCLUDE := $(SDL3_INCLUDE) $(SDL3_IMAGE_INCLUDE)
-SDL_LIBS := $(SDL3_LIBS) $(SDL3_IMAGE_LIBS)
+SDL_INCLUDE := $(SDL3_INCLUDE) $(SDL3_IMAGE_INCLUDE) $(SDL3_TTF_INCLUDE)
+SDL_LIBS := $(SDL3_LIBS) $(SDL3_IMAGE_LIBS) $(SDL3_TTF_LIBS)
 
 # Include directories
 INCLUDES := -I$(SRC_DIR) $(SDL_INCLUDE)
@@ -288,7 +303,7 @@ help:
 	@echo "  help        - Show this help message"
 	@echo ""
 	@echo "Dependencies:"
-	@echo "  SDL3, SDL3_image (configure paths with SDL3_DIR on Windows)"
+	@echo "  SDL3, SDL3_image, SDL3_ttf (configure paths with SDL3_DIR on Windows)"
 	@echo "  shadercross (optional - for shader compilation)"
 	@echo ""
 	@echo "Shader structure:"

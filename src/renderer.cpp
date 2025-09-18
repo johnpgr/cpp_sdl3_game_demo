@@ -23,25 +23,6 @@ static const u16 QUAD_INDICES[] = {
 };
 // clang-format on
 
-static SDL_GPUPresentMode get_present_mode(
-    SDL_GPUDevice* device,
-    SDL_Window* window
-) {
-    if (SDL_WindowSupportsGPUPresentMode(
-            device,
-            window,
-            SDL_GPU_PRESENTMODE_MAILBOX
-        ))
-        return SDL_GPU_PRESENTMODE_MAILBOX;
-    if (SDL_WindowSupportsGPUPresentMode(
-            device,
-            window,
-            SDL_GPU_PRESENTMODE_IMMEDIATE
-        ))
-        return SDL_GPU_PRESENTMODE_IMMEDIATE;
-    return SDL_GPU_PRESENTMODE_VSYNC;
-}
-
 /**
  * @brief Initializes the renderer state and sets up the GPU pipeline for
  * rendering sprites.
@@ -81,12 +62,17 @@ bool init_renderer_state(Arena* arena) {
 #ifdef _WIN32
     SDL_SetHint(SDL_HINT_GPU_DRIVER, "direct3d12");
 #endif
+
+    // clang-format off
     state->device = SDL_CreateGPUDevice(
-        SDL_GPU_SHADERFORMAT_DXIL | SDL_GPU_SHADERFORMAT_SPIRV |
-            SDL_GPU_SHADERFORMAT_MSL,
+        SDL_GPU_SHADERFORMAT_DXIL |
+        SDL_GPU_SHADERFORMAT_SPIRV |
+        SDL_GPU_SHADERFORMAT_MSL,
         DEBUG_BOOL,
         nullptr
     );
+    // clang-format on
+
     if (!state->device) {
         SDL_Log("Failed to create a GPU device");
         return false;
@@ -100,12 +86,14 @@ bool init_renderer_state(Arena* arena) {
         return false;
     }
 
-    SDL_SetGPUSwapchainParameters(
-        state->device,
-        state->window,
-        SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
-        get_present_mode(state->device, state->window)
-    );
+    if (!SDL_SetGPUSwapchainParameters(
+            state->device,
+            state->window,
+            SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+            SDL_GPU_PRESENTMODE_IMMEDIATE
+        )) {
+        SDL_Log("Failed to set GPU swapchain parameters");
+    }
 
     SDL_GPUBufferCreateInfo vertex_buffer_info{
         .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
