@@ -53,7 +53,7 @@ bool init_renderer_state(Arena* arena) {
         "The game",
         INITIAL_WINDOW_WIDTH,
         INITIAL_WINDOW_HEIGHT,
-        SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE
+        SDL_WINDOW_HIDDEN
     );
     if (!state->window) {
         SDL_Log("Failed to create a window");
@@ -337,19 +337,18 @@ void RendererState::destroy() {
  * @note Creates temporary depth texture for each frame
  */
 void RendererState::render() {
-    auto screen_w = input_state->screen_size[0];
-    auto screen_h = input_state->screen_size[1];
-
     if (renderer_state->transforms.is_empty()) {
         return;
     }
 
-    f32 aspect_ratio = (f32)screen_w / (f32)screen_h;
-    f32 base_size = 200.0f / game_camera.zoom;
-    f32 min_x = -aspect_ratio * base_size;
-    f32 max_x = aspect_ratio * base_size;
-    f32 min_y = -base_size;
-    f32 max_y = base_size;
+    // Calculate the view bounds based on the camera's position and dimensions
+    float view_width = game_camera.dimensions.x / game_camera.zoom;
+    float view_height = game_camera.dimensions.y / game_camera.zoom;
+
+    float min_x = game_camera.position.x - view_width / 2.0f;
+    float max_x = game_camera.position.x + view_width / 2.0f;
+    float min_y = game_camera.position.y - view_height / 2.0f;
+    float max_y = game_camera.position.y + view_height / 2.0f;
 
     mat4x4 camera_matrix =
         mat4x4::orthographic_projection(min_x, max_x, min_y, max_y);
