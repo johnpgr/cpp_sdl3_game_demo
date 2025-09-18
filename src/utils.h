@@ -29,18 +29,20 @@ template <typename F> Defer<F> operator+(defer_dummy, F&& f) {
 
 #ifdef _WIN32
 #define export extern "C" __declspec(dllexport)
-#elif __linux__
-#define export
-#elif __APPLE__
-#define export
+#elif defined(__linux__) || defined(__APPLE__)
+#ifdef __cplusplus
+#define export extern "C" __attribute__((visibility("default")))
+#else
+#define export __attribute__((visibility("default")))
+#endif
 #endif
 
 #ifdef _WIN32
 #define DYNLIB(name) name ".dll"
 #elif defined(__linux__)
-#define DYNLIB(name) "lib" name ".so"
+#define DYNLIB(name) name ".so"
 #elif defined(__APPLE__)
-#define DYNLIB(name) "lib" name ".dylib"
+#define DYNLIB(name) name ".dylib"
 #endif
 
 #ifdef DEBUG

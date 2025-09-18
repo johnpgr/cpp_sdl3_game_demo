@@ -16,7 +16,6 @@ CXX := clang++
 CXXFLAGS := -std=c++23 -Wall -Wextra -Wno-address-of-temporary -Wno-missing-designated-field-initializers
 DEBUG_FLAGS := -g -DDEBUG
 RELEASE_FLAGS := -DNDEBUG -O3
-LDFLAGS := -fuse-ld=lld
 
 RM := rm -f
 RMDIR := rm -rf
@@ -29,19 +28,19 @@ ifeq ($(OS),Windows_NT)
     PLATFORM := Windows
     EXECUTABLE := $(PROJECT_NAME).exe
     LIBRARY_EXT := .dll
-	LDFLAGS += -Wl,/SUBSYSTEM:WINDOWS -Wl,/NOIMPLIB
+	LDFLAGS := -fuse-ld=lld -Wl,/SUBSYSTEM:WINDOWS -Wl,/NOIMPLIB
     SHARED_FLAGS := -shared
-
 else
     PLATFORM := Unix
     EXECUTABLE := $(PROJECT_NAME)
     LIBRARY_EXT := .so
-    LDFLAGS += -Wl,--no-implib
+	LDFLAGS := -fuse-ld=lld -Wl,--no-implib
     SHARED_FLAGS := -shared -fPIC
     UNAME_S := $(shell uname -s)
     ifeq ($(UNAME_S),Darwin)
         PLATFORM := macOS
         LIBRARY_EXT := .dylib
+		LDFLAGS :=
         SHARED_FLAGS := -shared -fPIC -undefined dynamic_lookup
     endif
 endif
