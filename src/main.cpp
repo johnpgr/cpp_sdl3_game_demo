@@ -1,6 +1,3 @@
-#include "SDL3/SDL_gpu.h"
-#include "SDL3/SDL_oldnames.h"
-#include "SDL3/SDL_timer.h"
 #include "arena.cpp"
 #include "array.cpp"
 #include "assert.cpp"
@@ -15,6 +12,12 @@
 #include "utils.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+
+// FPS tracking
+static f32 fps = 0.0f;
+static f32 frame_time_accumulator = 0.0f;
+static i32 frame_count = 0;
+static f32 last_title_update_time = 0.0f;
 
 typedef void GameUpdateFn(
     GameState*,
@@ -84,35 +87,53 @@ static void init_game_state(Arena* arena) {
 
     game_state->key_mappings[MOUSE1].keys.push(KEY_MOUSE_LEFT);
     game_state->key_mappings[MOUSE2].keys.push(KEY_MOUSE_RIGHT);
+
+    game_state->key_mappings[TOGGLE_FPS_CAP].keys.push(KEY_T);
 }
 
-void poll_events(SDL_Event* event) {
-    while (SDL_PollEvent(event)) {
-        switch (event->type) {
+void poll_events() {
+    SDL_Event event{};
+
+    while (SDL_PollEvent(&event)) {
+        switch (event.type) {
             case SDL_EVENT_QUIT:
                 game_state->quit = true;
                 break;
             case SDL_EVENT_KEY_DOWN:
             case SDL_EVENT_KEY_UP:
-                input_state->process_key_event(&event->key);
+                input_state->process_key_event(&event.key);
                 break;
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
             case SDL_EVENT_MOUSE_BUTTON_UP:
-                input_state->process_mouse_button_event(&event->button);
+                input_state->process_mouse_button_event(&event.button);
                 break;
             case SDL_EVENT_MOUSE_MOTION:
-                input_state->process_mouse_motion(&event->motion);
+                input_state->process_mouse_motion(&event.motion);
                 break;
             case SDL_EVENT_WINDOW_RESIZED:
                 input_state->screen_size =
-                    ivec2(event->window.data1, event->window.data2);
+                    ivec2(event.window.data1, event.window.data2);
                 break;
         }
     }
 }
 
+static void update_window_title(f32 current_time) {
+    // Update title every 0.5 seconds
+    if (current_time - last_title_update_time < 0.5f) {
+        return;
+    }
+    last_title_update_time = current_time;
+
+    // Format title with FPS and memory usage
+    char title[256];
+    SDL_snprintf(title, sizeof(title), "FPS: %.1f", fps);
+
+    SDL_SetWindowTitle(renderer_state->window, title);
+}
+
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
-    Arena transient_storage(MB(128));
+    Arena transient_storage(MB(32));
     Arena permanent_storage(MB(64));
 
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
@@ -143,28 +164,54 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
     SDL_ShowWindow(renderer_state->window);
 
-    const u64 NANOS_PER_UPDATE = NANOS_PER_SEC / FPS;
-    u64 accumulator = 0;
-    u64 last_time = SDL_GetTicksNS();
+    u64 last_time = SDL_GetPerformanceCounter();
+    u64 frequency = SDL_GetPerformanceFrequency();
+    const f32 target_frame_time = 1.0f / (f32)FPS;
 
     while (!game_state->quit) {
-        u64 current_time = SDL_GetTicksNS();
-        u64 delta_time = current_time - last_time;
-        last_time = current_time;
-        accumulator += delta_time;
+        u64 frame_start = SDL_GetPerformanceCounter();
+        f32 delta_time = (f32)(frame_start - last_time) / (f32)frequency;
+        last_time = frame_start;
+
+        // Calculate FPS
+        frame_time_accumulator += delta_time;
+        frame_count++;
+
+        // Update FPS every second
+        if (frame_time_accumulator >= 1.0f) {
+            fps = (f32)frame_count / frame_time_accumulator;
+            frame_time_accumulator = 0.0f;
+            frame_count = 0;
+        }
+
+        f32 current_time_seconds = (f32)frame_start / frequency;
+        update_window_title(current_time_seconds);
 
         reload_game_dll(&transient_storage);
 
-        SDL_Event event{};
-        poll_events(&event);
+        input_state->begin_frame();
 
-        // while (accumulator >= NANOS_PER_UPDATE) {
-            input_state->begin_frame();
-            game_update(game_state, input_state, sprite_atlas, renderer_state);
-            renderer_state->render();
+        poll_events();
 
-            accumulator -= NANOS_PER_UPDATE;
-        // }
+        game_update(game_state, input_state, sprite_atlas, renderer_state);
+        renderer_state->render();
+
+        if (game_state->fps_cap) {
+            u64 frame_end = SDL_GetPerformanceCounter();
+            f32 frame_elapsed = (f32)(frame_end - frame_start) / (f32)frequency;
+            f32 remaining = target_frame_time - frame_elapsed;
+            if (remaining > 0.0f) {
+                Uint32 ms = (Uint32)(remaining * 1000.0f);
+                if (ms > 1) {
+                    SDL_Delay(ms - 1); // coarse sleep
+                }
+                // busy-wait until target_frame_time reached
+                while ((f32)(SDL_GetPerformanceCounter() - frame_start) /
+                           (f32)frequency <
+                       target_frame_time) {
+                }
+            }
+        }
 
         transient_storage.clear();
     }

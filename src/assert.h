@@ -1,6 +1,6 @@
 #pragma once
 
-#include <SDL3/SDL_log.h>
+#include "SDL3/SDL_log.h"
 #include <cstdlib>
 
 // Function declarations

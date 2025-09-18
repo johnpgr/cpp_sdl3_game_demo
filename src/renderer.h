@@ -1,10 +1,11 @@
 #pragma once
 
+#include "SDL3/SDL_gpu.h"
+#include "SDL3/SDL_video.h"
 #include "arena.h"
 #include "array.h"
 #include "math3d.h"
 #include "types.h"
-#include <SDL3/SDL.h>
 
 struct Camera2d {
     f32 zoom{1.0};

@@ -43,7 +43,14 @@ export void game_update(GameState* gs, InputState* is, SpriteAtlas* sa, Renderer
         renderer_state = rs;
     }
 
-    draw_sprite(SPRITE_DICE, game_state->player_position);
+    for (auto i = 0; i < 1000; i ++) {
+        draw_sprite(SPRITE_DICE, game_state->player_position + ivec2(i));
+    }
+
+    if (just_pressed(TOGGLE_FPS_CAP)) {
+        game_state->fps_cap = !game_state->fps_cap;
+        SDL_Log("FPS CAP: %s", game_state->fps_cap ? "Enabled" : "Disabled");
+    }
 
     if (is_down(QUIT)) {
         game_state->quit = true;

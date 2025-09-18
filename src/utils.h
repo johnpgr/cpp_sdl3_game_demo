@@ -28,13 +28,9 @@ template <typename F> Defer<F> operator+(defer_dummy, F&& f) {
 #define defer auto _defer(__LINE__) = defer_dummy() + [&]()
 
 #ifdef _WIN32
-#define export extern "C" __declspec(dllexport)
+#define EXPORT_FN extern "C" __declspec(dllexport)
 #elif defined(__linux__) || defined(__APPLE__)
-#ifdef __cplusplus
-#define export extern "C" __attribute__((visibility("default")))
-#else
-#define export __attribute__((visibility("default")))
-#endif
+#define EXPORT_FN extern "C" __attribute__((visibility("default")))
 #endif
 
 #ifdef _WIN32
@@ -46,7 +42,7 @@ template <typename F> Defer<F> operator+(defer_dummy, F&& f) {
 #endif
 
 #ifdef DEBUG
-#define debug_mode true
+#define DEBUG_BOOL true
 #else
-#define debug_mode false
+#define DEBUG_BOOL false
 #endif

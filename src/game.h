@@ -20,6 +20,8 @@ enum GameInputType {
 
     QUIT,
 
+    TOGGLE_FPS_CAP,
+
     GAME_INPUT_COUNT
 };
 
@@ -29,11 +31,11 @@ struct KeyMapping {
 
 struct GameState {
     bool quit{};
-    bool fps_cap{};
+    bool fps_cap{true};
     ivec2 player_position{};
     KeyMapping key_mappings[GAME_INPUT_COUNT]{};
 };
 
 static GameState* game_state{};
 
-export void game_update(GameState* gs, InputState* is, SpriteAtlas* sa, RendererState* rs);
+EXPORT_FN void game_update(GameState* gs, InputState* is, SpriteAtlas* sa, RendererState* rs);

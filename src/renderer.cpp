@@ -1,6 +1,5 @@
 #include "renderer.h"
 #include "SDL3/SDL_gpu.h"
-#include "SDL3/SDL_hints.h"
 #include "assert.h"
 #include "consts.h"
 #include "file.h"
@@ -10,7 +9,7 @@
 #include <SDL3_image/SDL_image.h>
 
 // clang-format off
-static const float QUAD_VERTICES[] = {
+static const f32 QUAD_VERTICES[] = {
     // Position    UV
     0.0f, 0.0f, 0.0f, 0.0f, // Top-left
     1.0f, 0.0f, 1.0f, 0.0f, // Top-right
@@ -18,11 +17,30 @@ static const float QUAD_VERTICES[] = {
     1.0f, 1.0f, 1.0f, 1.0f // Bottom-right
 };
 
-static const uint16_t QUAD_INDICES[] = {
+static const u16 QUAD_INDICES[] = {
     0, 1, 2, // First triangle
     2, 1, 3 // Second triangle
 };
 // clang-format on
+
+static SDL_GPUPresentMode get_present_mode(
+    SDL_GPUDevice* device,
+    SDL_Window* window
+) {
+    if (SDL_WindowSupportsGPUPresentMode(
+            device,
+            window,
+            SDL_GPU_PRESENTMODE_MAILBOX
+        ))
+        return SDL_GPU_PRESENTMODE_MAILBOX;
+    if (SDL_WindowSupportsGPUPresentMode(
+            device,
+            window,
+            SDL_GPU_PRESENTMODE_IMMEDIATE
+        ))
+        return SDL_GPU_PRESENTMODE_IMMEDIATE;
+    return SDL_GPU_PRESENTMODE_VSYNC;
+}
 
 /**
  * @brief Initializes the renderer state and sets up the GPU pipeline for
@@ -50,7 +68,7 @@ bool init_renderer_state(Arena* arena) {
     state->ui_camera.position = vec2(160, -90);
 
     state->window = SDL_CreateWindow(
-        "The game",
+        "FPS: ",
         INITIAL_WINDOW_WIDTH,
         INITIAL_WINDOW_HEIGHT,
         SDL_WINDOW_HIDDEN
@@ -66,7 +84,7 @@ bool init_renderer_state(Arena* arena) {
     state->device = SDL_CreateGPUDevice(
         SDL_GPU_SHADERFORMAT_DXIL | SDL_GPU_SHADERFORMAT_SPIRV |
             SDL_GPU_SHADERFORMAT_MSL,
-        debug_mode,
+        DEBUG_BOOL,
         nullptr
     );
     if (!state->device) {
@@ -81,6 +99,13 @@ bool init_renderer_state(Arena* arena) {
         SDL_Log("Failed to claim window for GPU device %s\n", SDL_GetError());
         return false;
     }
+
+    SDL_SetGPUSwapchainParameters(
+        state->device,
+        state->window,
+        SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
+        get_present_mode(state->device, state->window)
+    );
 
     SDL_GPUBufferCreateInfo vertex_buffer_info{
         .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
