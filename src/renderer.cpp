@@ -311,9 +311,37 @@ bool init_renderer_state(Arena* arena) {
 }
 
 void RendererState::destroy() {
-    SDL_ReleaseWindowFromGPUDevice(device, window);
-    SDL_DestroyWindow(window);
-    SDL_DestroyGPUDevice(device);
+    if (pipeline) {
+        SDL_ReleaseGPUGraphicsPipeline(device, pipeline);
+        pipeline = nullptr;
+    }
+
+    if (transform_buffer) {
+        SDL_ReleaseGPUBuffer(device, transform_buffer);
+        transform_buffer = nullptr;
+    }
+
+    if (quad_vertex_buffer) {
+        SDL_ReleaseGPUBuffer(device, quad_vertex_buffer);
+        quad_vertex_buffer = nullptr;
+    }
+
+    if (quad_index_buffer) {
+        SDL_ReleaseGPUBuffer(device, quad_index_buffer);
+        quad_index_buffer = nullptr;
+    }
+
+    if (device && window) {
+        SDL_ReleaseWindowFromGPUDevice(device, window);
+    }
+    if (window) {
+        SDL_DestroyWindow(window);
+        window = nullptr;
+    }
+    if (device) {
+        SDL_DestroyGPUDevice(device);
+        device = nullptr;
+    }
 }
 
 /**

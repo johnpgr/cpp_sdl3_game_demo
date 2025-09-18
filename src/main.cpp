@@ -118,6 +118,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
 
     defer {
+        if (sprite_atlas) sprite_atlas->destroy();
+        if (renderer_state) renderer_state->destroy();
         transient_storage.destroy();
         permanent_storage.destroy();
 
@@ -156,13 +158,13 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
         SDL_Event event{};
         poll_events(&event);
 
-        while (accumulator >= NANOS_PER_UPDATE) {
+        // while (accumulator >= NANOS_PER_UPDATE) {
             input_state->begin_frame();
             game_update(game_state, input_state, sprite_atlas, renderer_state);
             renderer_state->render();
 
             accumulator -= NANOS_PER_UPDATE;
-        }
+        // }
 
         transient_storage.clear();
     }
