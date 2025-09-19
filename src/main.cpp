@@ -45,14 +45,17 @@ static void reload_game_dll(Arena* transient_storage) {
         }
 
         game_dll = SDL_LoadObject(DYNLIB("libgame_load"));
-        DEBUG_ASSERT(game_dll != nullptr, "Failed to load game dynlib");
+        if(!game_dll) {
+            SDL_Log("Failed to load game dynlib: %s", SDL_GetError());
+            return;
+        }
 
         game_update_ptr =
             (GameUpdateFn*)SDL_LoadFunction(game_dll, "game_update");
-        DEBUG_ASSERT(
-            game_update_ptr != nullptr,
-            "Failed to load game_update function"
-        );
+        if (!game_update_ptr) {
+            SDL_Log("Failed to load game_update function: %s", SDL_GetError());
+            return;
+        }
         game_dll_timestamp = current_dll_timestamp;
     }
 }

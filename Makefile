@@ -34,13 +34,11 @@ else
     PLATFORM := Unix
     EXECUTABLE := $(PROJECT_NAME)
     LIBRARY_EXT := .so
-	LDFLAGS := -fuse-ld=lld -Wl,--no-implib
     SHARED_FLAGS := -shared -fPIC
     UNAME_S := $(shell uname -s)
     ifeq ($(UNAME_S),Darwin)
         PLATFORM := macOS
         LIBRARY_EXT := .dylib
-		LDFLAGS :=
         SHARED_FLAGS := -shared -fPIC -undefined dynamic_lookup
     endif
 endif

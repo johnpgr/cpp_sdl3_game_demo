@@ -36,9 +36,9 @@ template <typename F> Defer<F> operator+(defer_dummy, F&& f) {
 #ifdef _WIN32
 #define DYNLIB(name) name ".dll"
 #elif defined(__linux__)
-#define DYNLIB(name) name ".so"
+#define DYNLIB(name) "./" name ".so"
 #elif defined(__APPLE__)
-#define DYNLIB(name) name ".dylib"
+#define DYNLIB(name) "./" name ".dylib"
 #endif
 
 #ifdef DEBUG
