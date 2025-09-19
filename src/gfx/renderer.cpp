@@ -151,15 +151,13 @@ bool Renderer::init() {
         .usage = SDL_GPU_BUFFERUSAGE_INDEX,
         .size = sizeof(QUAD_INDICES),
     };
-    sprite_quad_index_buffer =
-        SDL_CreateGPUBuffer(device, &index_buffer_info);
+    sprite_quad_index_buffer = SDL_CreateGPUBuffer(device, &index_buffer_info);
     if (!sprite_quad_index_buffer) {
         SDL_Log("Failed to create quad_index_buffer");
         return false;
     }
 
-    SDL_GPUCommandBuffer* upload_cmd =
-        SDL_AcquireGPUCommandBuffer(device);
+    SDL_GPUCommandBuffer* upload_cmd = SDL_AcquireGPUCommandBuffer(device);
     SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(upload_cmd);
 
     // Upload vertices
@@ -199,8 +197,7 @@ bool Renderer::init() {
         }
     );
 
-    void* index_data =
-        SDL_MapGPUTransferBuffer(device, index_transfer, false);
+    void* index_data = SDL_MapGPUTransferBuffer(device, index_transfer, false);
     SDL_memcpy(index_data, QUAD_INDICES, sizeof(QUAD_INDICES));
     SDL_UnmapGPUTransferBuffer(device, index_transfer);
 
@@ -337,8 +334,7 @@ bool Renderer::init() {
         .target_info = target_info,
     };
 
-    sprite_pipeline =
-        SDL_CreateGPUGraphicsPipeline(device, &pipeline_info);
+    sprite_pipeline = SDL_CreateGPUGraphicsPipeline(device, &pipeline_info);
     if (!sprite_pipeline) {
         SDL_Log("Failed to create graphics pipeline: %s", SDL_GetError());
         return false;
@@ -352,8 +348,7 @@ bool Renderer::init() {
     transform_buffer_info.size =
         sizeof(SpriteVertex) * sprite_vertices.capacity;
 
-    sprite_vertex_buffer =
-        SDL_CreateGPUBuffer(device, &transform_buffer_info);
+    sprite_vertex_buffer = SDL_CreateGPUBuffer(device, &transform_buffer_info);
 
     if (!sprite_vertex_buffer) {
         SDL_Log("Failed to create transform buffer: %s", SDL_GetError());
@@ -568,6 +563,11 @@ void Renderer::cleanup() {
         sprite_quad_index_buffer = nullptr;
     }
 
+    if (depth_texture) {
+        SDL_ReleaseGPUTexture(device, depth_texture);
+        depth_texture = nullptr;
+    }
+
     if (text_pipeline) {
         SDL_ReleaseGPUGraphicsPipeline(device, text_pipeline);
         text_pipeline = nullptr;
@@ -679,26 +679,34 @@ void Renderer::render() {
         upload_text_data();
     }
 
-    SDL_PropertiesID props = SDL_CreateProperties();
-    SDL_SetFloatProperty(
-        props,
-        SDL_PROP_GPU_TEXTURE_CREATE_D3D12_CLEAR_DEPTH_FLOAT,
-        1.0f
-    );
+    if (!depth_texture || depth_texture_size.x != input->screen_size.x ||
+        depth_texture_size.y != input->screen_size.y) {
 
-    SDL_GPUTextureCreateInfo depth_texture_info{
-        .type = SDL_GPU_TEXTURETYPE_2D,
-        .format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
-        .usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
-        .width = (u32)input->screen_size.x,
-        .height = (u32)input->screen_size.y,
-        .layer_count_or_depth = 1,
-        .num_levels = 1,
-        .props = props,
-    };
+        if (depth_texture) {
+            SDL_ReleaseGPUTexture(device, depth_texture);
+            depth_texture = nullptr;
+        }
 
-    SDL_GPUTexture* depth_texture =
-        SDL_CreateGPUTexture(device, &depth_texture_info);
+        SDL_PropertiesID props = SDL_CreateProperties();
+        SDL_SetFloatProperty(
+            props,
+            SDL_PROP_GPU_TEXTURE_CREATE_D3D12_CLEAR_DEPTH_FLOAT,
+            1.0f
+        );
+
+        SDL_GPUTextureCreateInfo depth_texture_info{
+            .type = SDL_GPU_TEXTURETYPE_2D,
+            .format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
+            .usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
+            .width = (u32)input->screen_size.x,
+            .height = (u32)input->screen_size.y,
+            .layer_count_or_depth = 1,
+            .num_levels = 1,
+            .props = props,
+        };
+
+        depth_texture = SDL_CreateGPUTexture(device, &depth_texture_info);
+    }
 
     SDL_GPURenderPass* render_pass = SDL_BeginGPURenderPass(
         cmdbuf,
@@ -728,7 +736,6 @@ void Renderer::render() {
 
     SDL_EndGPURenderPass(render_pass);
     SDL_SubmitGPUCommandBuffer(cmdbuf);
-    SDL_ReleaseGPUTexture(device, depth_texture);
 
     // Clear per-frame data
     sprite_vertices.clear();
@@ -931,7 +938,10 @@ void Renderer::render_text_geometry(
     SDL_DrawGPUIndexedPrimitives(
         render_pass,
         text_geometry.indices.size,
-        1, 0, 0, 0
+        1,
+        0,
+        0,
+        0
     );
 }
 

@@ -63,6 +63,9 @@ struct Renderer {
     SDL_GPUBuffer* sprite_quad_index_buffer{};
     SDL_GPUTransferBuffer* sprite_transfer_buffer{};
 
+    SDL_GPUTexture* depth_texture{};
+    ivec2 depth_texture_size{};
+
     // Text rendering
     SDL_GPUGraphicsPipeline* text_pipeline{};
     SDL_GPUBuffer* text_vertex_buffer{};
