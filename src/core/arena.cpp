@@ -3,7 +3,9 @@
 
 #include <SDL3/SDL.h>
 #include <string.h> // For std::memset
+#ifndef _WIN32
 #include <new>
+#endif
 
 // Helper for aligning memory
 inline void* align_ptr(void* ptr, usize alignment) {

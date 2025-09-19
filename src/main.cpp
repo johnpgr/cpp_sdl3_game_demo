@@ -146,12 +146,13 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
     init_game_state(&permanent_storage);
     init_input(&permanent_storage);
 
-    if (!init_renderer(&permanent_storage)) {
+    renderer = permanent_storage.push_struct<Renderer>();
+    if (!renderer || !renderer->init()) {
         SDL_Log("Failed to initialize renderer");
         return EXIT_FAILURE;
     }
 
-    if (!init_text_renderer(&permanent_storage, "assets/fonts/dejavu.ttf")) {
+    if (!renderer->init_text("assets/fonts/dejavu.ttf")) {
         SDL_Log("Failed to initialize text_renderer");
         return EXIT_FAILURE;
     }

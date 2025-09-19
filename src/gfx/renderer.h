@@ -5,9 +5,10 @@
 #include "SDL3_ttf/SDL_ttf.h"
 #include "core/arena.h"
 #include "core/array.h"
-#include "gfx/sprite.h"
 #include "core/math3d.h"
 #include "core/types.h"
+#include "game/consts.h"
+#include "gfx/sprite.h"
 
 #define MAX_SPRITES 5000
 #define MAX_TEXT_VERTICES 5000
@@ -15,8 +16,8 @@
 
 struct Camera2d {
     f32 zoom{1.0};
-    vec2 dimensions{};
-    vec2 position{};
+    vec2 dimensions{WIDTH, HEIGHT};
+    vec2 position{160, -90};
 };
 
 struct SpriteVertex {
@@ -40,21 +41,15 @@ struct QueuedText {
 
 // Text geometry data for batching text rendering
 struct TextGeometryData {
-    Arena* arena;
-    TextVertex* vertices;
-    i32* indices;
-    i32 vertex_count;
-    i32 index_count;
-    i32 max_vertices;
-    i32 max_indices;
+    Array<TextVertex, MAX_TEXT_VERTICES> vertices{};
+    Array<i32, MAX_TEXT_INDICES> indices{};
 
-    void init(Arena* memory_arena, i32 max_vertex_count, i32 max_index_count);
+    void reset();
     void queue_text_sequence(
-        const TTF_GPUAtlasDrawSequence* sequence,
-        const vec4& color,
+        TTF_GPUAtlasDrawSequence* sequence,
+        vec4 color,
         vec2 offset = {0, 0}
     );
-    void reset();
 };
 
 struct Renderer {
@@ -85,6 +80,9 @@ struct Renderer {
     Array<SpriteVertex, MAX_SPRITES> sprite_vertices{};
     Array<QueuedText, 100> queued_texts{};
 
+    bool init();
+    bool init_text(const char* fontfile_path);
+
     void destroy();
     void render();
     void draw_sprite(SpriteId sprite_id, vec2 pos);
@@ -93,8 +91,10 @@ struct Renderer {
     void draw_sprite(SpriteId sprite_id, ivec2 pos, vec2 size);
     void draw_text(const char* text, vec2 position, vec4 color);
 
+  private:
     void process_queued_text();
-
+    void upload_sprite_data();
+    void upload_text_data();
     void render_sprite_vertices(
         SDL_GPURenderPass* render_pass,
         SDL_GPUCommandBuffer* cmdbuf,
@@ -105,15 +105,9 @@ struct Renderer {
         SDL_GPUCommandBuffer* cmdbuf,
         mat4x4* matrices
     );
-
-    void upload_sprite_data();
-    void upload_text_data();
 };
 
 static Renderer* renderer{};
-
-bool init_renderer(Arena* arena);
-bool init_text_renderer(Arena* arena, const char* fontfile_path);
 
 ivec2 screen_to_world(ivec2 screen_pos);
 
