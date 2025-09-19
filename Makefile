@@ -166,7 +166,7 @@ ALL_COMPILED_SHADERS := $(VERT_SPV) $(VERT_MSL) $(VERT_DXIL) $(FRAG_SPV) $(FRAG_
 .PHONY: all clean debug release help dirs shaders clean-shaders copy-assets
 
 # Default target
-all: shaders copy-assets $(MAIN_TARGET) $(GAME_TARGET)
+all: shaders compile-shaders copy-assets $(MAIN_TARGET) $(GAME_TARGET)
 
 # Debug build
 debug:
@@ -191,7 +191,7 @@ copy-assets: | dirs
 	@echo "Copying assets to $(BIN_DIR)..."
 ifeq ($(wildcard $(ASSETS_DIR)),$(ASSETS_DIR))
 ifeq ($(PLATFORM),Windows)
-	$(COPYR) $(ASSETS_DIR) $(BIN_DIR)/$(ASSETS_DIR)
+	$(COPYR) $(ASSETS_DIR) $(BIN_DIR)/
 else
 	$(COPYR) $(ASSETS_DIR) $(BIN_DIR)/
 endif

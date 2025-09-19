@@ -1,4 +1,4 @@
-struct Transform {
+struct SpriteVertex {
     float2 pos;
     float2 size;
     float2 uv_min;    // Normalized UV coordinates
@@ -15,7 +15,7 @@ struct VSOutput {
     float2 texture_coords : TEXCOORD0;
 };
 
-StructuredBuffer<Transform> transforms : register(t0, space0);
+StructuredBuffer<SpriteVertex> sprite_vertices : register(t0, space0);
 
 cbuffer Constants : register(b0, space1) {
     float4x4 camera_matrix;
@@ -24,14 +24,14 @@ cbuffer Constants : register(b0, space1) {
 VSOutput main(VSInput input, uint instance_id : SV_InstanceID) {
     VSOutput output;
     
-    Transform transform = transforms[instance_id];
+    SpriteVertex vertex = sprite_vertices[instance_id];
 
     // Scale and translate unit quad to world position
-    float2 world_pos = transform.pos + input.position * transform.size;
+    float2 world_pos = vertex.pos + input.position * vertex.size;
     output.position = mul(camera_matrix, float4(world_pos, 0.0f, 1.0f));
 
     // Interpolate between min and max UV coordinates
-    output.texture_coords = lerp(transform.uv_min, transform.uv_max, input.uv);
+    output.texture_coords = lerp(vertex.uv_min, vertex.uv_max, input.uv);
     
     return output;
 }

@@ -12,6 +12,7 @@
 #include "utils.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 // FPS tracking
 static f32 fps = 0.0f;
@@ -19,12 +20,7 @@ static f32 frame_time_accumulator = 0.0f;
 static i32 frame_count = 0;
 static f32 last_title_update_time = 0.0f;
 
-typedef void GameUpdateFn(
-    GameState*,
-    InputState*,
-    SpriteAtlas*,
-    RendererState*
-);
+typedef void GameUpdateFn(GameState*, Input*, SpriteAtlas*, Renderer*);
 static GameUpdateFn* game_update_ptr;
 
 static void reload_game_dll(Arena* transient_storage) {
@@ -61,12 +57,7 @@ static void reload_game_dll(Arena* transient_storage) {
     }
 }
 
-void game_update(
-    GameState* gs,
-    InputState* is,
-    SpriteAtlas* sa,
-    RendererState* rs
-) {
+void game_update(GameState* gs, Input* is, SpriteAtlas* sa, Renderer* rs) {
     DEBUG_ASSERT(game_update_ptr != nullptr, "game_update_ptr is null");
     game_update_ptr(gs, is, sa, rs);
 }
@@ -101,17 +92,17 @@ void poll_events() {
                 break;
             case SDL_EVENT_KEY_DOWN:
             case SDL_EVENT_KEY_UP:
-                input_state->process_key_event(&event.key);
+                input->process_key_event(&event.key);
                 break;
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
             case SDL_EVENT_MOUSE_BUTTON_UP:
-                input_state->process_mouse_button_event(&event.button);
+                input->process_mouse_button_event(&event.button);
                 break;
             case SDL_EVENT_MOUSE_MOTION:
-                input_state->process_mouse_motion(&event.motion);
+                input->process_mouse_motion(&event.motion);
                 break;
             case SDL_EVENT_WINDOW_RESIZED:
-                input_state->screen_size =
+                input->screen_size =
                     ivec2(event.window.data1, event.window.data2);
                 break;
         }
@@ -129,7 +120,7 @@ static void update_window_title(f32 current_time) {
     char title[256];
     SDL_snprintf(title, sizeof(title), "FPS: %.1f", fps);
 
-    SDL_SetWindowTitle(renderer_state->window, title);
+    SDL_SetWindowTitle(renderer->window, title);
 }
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
@@ -137,21 +128,28 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
     Arena permanent_storage(MB(64));
 
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
+    TTF_Init();
 
     defer {
         if (sprite_atlas) sprite_atlas->destroy();
-        if (renderer_state) renderer_state->destroy();
+        if (renderer) renderer->destroy();
         transient_storage.destroy();
         permanent_storage.destroy();
 
+        TTF_Init();
         SDL_Quit();
     };
 
     init_game_state(&permanent_storage);
-    init_input_state(&permanent_storage);
+    init_input(&permanent_storage);
 
-    if (!init_renderer_state(&permanent_storage)) {
-        SDL_Log("Failed to initialize renderer_state");
+    if (!init_renderer(&permanent_storage)) {
+        SDL_Log("Failed to initialize renderer");
+        return EXIT_FAILURE;
+    }
+
+    if (!init_text_renderer(&permanent_storage, "assets/fonts/dejavu.ttf")) {
+        SDL_Log("Failed to initialize text_renderer");
         return EXIT_FAILURE;
     }
 
@@ -162,7 +160,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
     register_sprites();
 
-    SDL_ShowWindow(renderer_state->window);
+    SDL_ShowWindow(renderer->window);
 
     u64 last_time = SDL_GetPerformanceCounter();
     u64 frequency = SDL_GetPerformanceFrequency();
@@ -189,12 +187,12 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
         reload_game_dll(&transient_storage);
 
-        input_state->begin_frame();
+        input->begin_frame();
 
         poll_events();
 
-        game_update(game_state, input_state, sprite_atlas, renderer_state);
-        renderer_state->render();
+        game_update(game_state, input, sprite_atlas, renderer);
+        renderer->render();
 
         if (game_state->fps_cap) {
             u64 frame_end = SDL_GetPerformanceCounter();

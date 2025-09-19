@@ -130,7 +130,7 @@ struct Key {
     u8 half_transition_count{};
 };
 
-struct InputState {
+struct Input {
     ivec2 screen_size{};
 
     // Screen
@@ -154,6 +154,6 @@ struct InputState {
     bool key_is_down(KeyCodeId scan_code);
 };
 
-static InputState* input_state{};
+static Input* input{};
 
-void init_input_state(Arena* arena);
+void init_input(Arena* arena);

@@ -50,7 +50,3 @@ static SpriteAtlas* sprite_atlas{};
 
 bool init_sprite_atlas(Arena* arena, const char* atlas_filename);
 void register_sprites();
-void draw_sprite(SpriteId sprite_id, vec2 pos);
-void draw_sprite(SpriteId sprite_id, ivec2 pos);
-void draw_sprite(SpriteId sprite_id, vec2 pos, vec2 size);
-void draw_sprite(SpriteId sprite_id, ivec2 pos, vec2 size);

@@ -15,7 +15,7 @@ static bool just_pressed(GameInputType type) {
     KeyMapping mapping = game_state->key_mappings[type];
 
     for (usize idx = 0; idx < mapping.keys.size; idx++) {
-        if (input_state->keys[mapping.keys[idx]].just_pressed) {
+        if (input->keys[mapping.keys[idx]].just_pressed) {
             return true;
         }
     }
@@ -27,7 +27,7 @@ static bool is_down(GameInputType type) {
     KeyMapping mapping = game_state->key_mappings[type];
 
     for (usize idx = 0; idx < mapping.keys.size; idx++) {
-        if (input_state->keys[mapping.keys[idx]].is_down) {
+        if (input->keys[mapping.keys[idx]].is_down) {
             return true;
         }
     }
@@ -35,15 +35,16 @@ static bool is_down(GameInputType type) {
     return false;
 }
 
-EXPORT_FN void game_update(GameState* gs, InputState* is, SpriteAtlas* sa, RendererState* rs) {
+EXPORT_FN void game_update(GameState* gs, Input* is, SpriteAtlas* sa, Renderer* rs) {
     if (gs != game_state) {
         game_state = gs;
-        input_state = is;
+        input = is;
         sprite_atlas = sa;
-        renderer_state = rs;
+        renderer = rs;
     }
 
-    draw_sprite(SPRITE_DICE, game_state->player_position);
+    renderer->draw_sprite(SPRITE_DICE, game_state->player_position);
+    renderer->draw_text("Hello, World!", vec2(0, 0), vec4(1.0f, 1.0f, 1.0f, 1.0f));
 
     if (just_pressed(TOGGLE_FPS_CAP)) {
         game_state->fps_cap = !game_state->fps_cap;
@@ -64,10 +65,10 @@ EXPORT_FN void game_update(GameState* gs, InputState* is, SpriteAtlas* sa, Rende
     if (is_down(MOVE_DOWN)) {
         game_state->player_position.y += 1;
     }
-    if (just_pressed(MOUSE1)) {
-        ivec2 world_pos = screen_to_world(input_state->mouse_pos);
-        draw_sprite(SPRITE_WHITE, world_pos, vec2(8));
+    if (is_down(MOUSE1)) {
+        ivec2 world_pos = screen_to_world(input->mouse_pos);
+        renderer->draw_sprite(SPRITE_WHITE, world_pos, vec2(8));
     }
-    if (just_pressed(MOUSE2)) {
+    if (is_down(MOUSE2)) {
     }
 }

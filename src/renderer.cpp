@@ -1,5 +1,6 @@
 #include "renderer.h"
 #include "SDL3/SDL_gpu.h"
+#include "SDL3/SDL_properties.h"
 #include "assert.h"
 #include "consts.h"
 #include "file.h"
@@ -7,6 +8,9 @@
 #include "sprite_atlas.h"
 #include "utils.h"
 #include <SDL3_image/SDL_image.h>
+
+#define MAX_TEXT_VERTICES 4000
+#define MAX_TEXT_INDICES 6000
 
 // clang-format off
 static const f32 QUAD_VERTICES[] = {
@@ -23,6 +27,58 @@ static const u16 QUAD_INDICES[] = {
 };
 // clang-format on
 
+void TextGeometryData::init(
+    Arena* memory_arena,
+    i32 max_vertex_count,
+    i32 max_index_count
+) {
+    arena = memory_arena;
+    vertices = arena->push_array<TextVertex>(max_vertex_count);
+    indices = arena->push_array<i32>(max_index_count);
+    vertex_count = 0;
+    index_count = 0;
+    max_vertices = max_vertex_count;
+    max_indices = max_index_count;
+}
+
+void TextGeometryData::queue_text_sequence(
+    const TTF_GPUAtlasDrawSequence* sequence,
+    const vec4& color,
+    vec2 offset
+) {
+    DEBUG_ASSERT(
+        vertex_count + sequence->num_vertices <= max_vertices,
+        "Text vertex buffer overflow"
+    );
+    DEBUG_ASSERT(
+        index_count + sequence->num_indices <= max_indices,
+        "Text index buffer overflow"
+    );
+
+    for (i32 i = 0; i < sequence->num_vertices; i++) {
+        TextVertex* vertex = &vertices[vertex_count + i];
+
+        vertex->pos.x = sequence->xy[i].x + offset.x;
+        vertex->pos.y = sequence->xy[i].y + offset.y;
+        vertex->pos.z = 0.0f;
+        vertex->color = color;
+        vertex->uv = vec2(sequence->uv[i].x, sequence->uv[i].y);
+    }
+
+    i32 vertex_offset = vertex_count;
+    for (i32 i = 0; i < sequence->num_indices; i++) {
+        indices[index_count + i] = sequence->indices[i] + vertex_offset;
+    }
+
+    vertex_count += sequence->num_vertices;
+    index_count += sequence->num_indices;
+}
+
+void TextGeometryData::reset() {
+    vertex_count = 0;
+    index_count = 0;
+}
+
 /**
  * @brief Initializes the renderer state and sets up the GPU pipeline for
  * rendering sprites.
@@ -38,23 +94,23 @@ static const u16 QUAD_INDICES[] = {
  * @param arena Memory arena for allocating the renderer state
  * @return true on successful initialization, false on any failure
  *
- * @note Sets the global renderer_state pointer on success
+ * @note Sets the global renderer pointer on success
  * @note Logs specific error messages for each failure point
  */
-bool init_renderer_state(Arena* arena) {
-    auto state = arena->push_struct<RendererState>();
-    state->game_camera.dimensions = vec2(WIDTH, HEIGHT);
-    state->game_camera.position = vec2(160, -90);
-    state->ui_camera.dimensions = vec2(WIDTH, HEIGHT);
-    state->ui_camera.position = vec2(160, -90);
+bool init_renderer(Arena* arena) {
+    auto rndr = arena->push_struct<Renderer>();
+    rndr->game_camera.dimensions = vec2(WIDTH, HEIGHT);
+    rndr->game_camera.position = vec2(160, -90);
+    rndr->ui_camera.dimensions = vec2(WIDTH, HEIGHT);
+    rndr->ui_camera.position = vec2(160, -90);
 
-    state->window = SDL_CreateWindow(
+    rndr->window = SDL_CreateWindow(
         "FPS: ",
         INITIAL_WINDOW_WIDTH,
         INITIAL_WINDOW_HEIGHT,
         SDL_WINDOW_HIDDEN
     );
-    if (!state->window) {
+    if (!rndr->window) {
         SDL_Log("Failed to create a window");
         return false;
     }
@@ -64,7 +120,7 @@ bool init_renderer_state(Arena* arena) {
 #endif
 
     // clang-format off
-    state->device = SDL_CreateGPUDevice(
+    rndr->device = SDL_CreateGPUDevice(
         SDL_GPU_SHADERFORMAT_DXIL |
         SDL_GPU_SHADERFORMAT_SPIRV |
         SDL_GPU_SHADERFORMAT_MSL,
@@ -73,35 +129,43 @@ bool init_renderer_state(Arena* arena) {
     );
     // clang-format on
 
-    if (!state->device) {
+    if (!rndr->device) {
         SDL_Log("Failed to create a GPU device");
         return false;
     }
 
-    const char* device_driver = SDL_GetGPUDeviceDriver(state->device);
+    const char* device_driver = SDL_GetGPUDeviceDriver(rndr->device);
     SDL_Log("Created GPU Device with driver %s\n", device_driver);
 
-    if (!SDL_ClaimWindowForGPUDevice(state->device, state->window)) {
+    if (!SDL_ClaimWindowForGPUDevice(rndr->device, rndr->window)) {
         SDL_Log("Failed to claim window for GPU device %s\n", SDL_GetError());
         return false;
     }
 
     if (!SDL_SetGPUSwapchainParameters(
-            state->device,
-            state->window,
+            rndr->device,
+            rndr->window,
             SDL_GPU_SWAPCHAINCOMPOSITION_SDR,
             SDL_GPU_PRESENTMODE_IMMEDIATE
         )) {
         SDL_Log("Failed to set GPU swapchain parameters");
     }
 
+    SDL_GPUTransferBufferCreateInfo transfer_info{
+        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+        .size = (u32)(sizeof(SpriteVertex) * rndr->sprite_vertices.capacity),
+    };
+    SDL_GPUTransferBuffer* transfer_buffer =
+        SDL_CreateGPUTransferBuffer(rndr->device, &transfer_info);
+    rndr->sprite_transfer_buffer = transfer_buffer;
+
     SDL_GPUBufferCreateInfo vertex_buffer_info{
         .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
         .size = sizeof(QUAD_VERTICES),
     };
-    state->quad_vertex_buffer =
-        SDL_CreateGPUBuffer(state->device, &vertex_buffer_info);
-    if (!state->quad_vertex_buffer) {
+    rndr->sprite_quad_vertex_buffer =
+        SDL_CreateGPUBuffer(rndr->device, &vertex_buffer_info);
+    if (!rndr->sprite_quad_vertex_buffer) {
         SDL_Log("Failed to create quad_vertex_buffer");
         return false;
     }
@@ -110,20 +174,20 @@ bool init_renderer_state(Arena* arena) {
         .usage = SDL_GPU_BUFFERUSAGE_INDEX,
         .size = sizeof(QUAD_INDICES),
     };
-    state->quad_index_buffer =
-        SDL_CreateGPUBuffer(state->device, &index_buffer_info);
-    if (!state->quad_index_buffer) {
+    rndr->sprite_quad_index_buffer =
+        SDL_CreateGPUBuffer(rndr->device, &index_buffer_info);
+    if (!rndr->sprite_quad_index_buffer) {
         SDL_Log("Failed to create quad_index_buffer");
         return false;
     }
 
     SDL_GPUCommandBuffer* upload_cmd =
-        SDL_AcquireGPUCommandBuffer(state->device);
+        SDL_AcquireGPUCommandBuffer(rndr->device);
     SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(upload_cmd);
 
     // Upload vertices
     SDL_GPUTransferBuffer* vertex_transfer = SDL_CreateGPUTransferBuffer(
-        state->device,
+        rndr->device,
         &(SDL_GPUTransferBufferCreateInfo){
             .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
             .size = sizeof(QUAD_VERTICES),
@@ -131,9 +195,9 @@ bool init_renderer_state(Arena* arena) {
     );
 
     void* vertex_data =
-        SDL_MapGPUTransferBuffer(state->device, vertex_transfer, false);
+        SDL_MapGPUTransferBuffer(rndr->device, vertex_transfer, false);
     SDL_memcpy(vertex_data, QUAD_VERTICES, sizeof(QUAD_VERTICES));
-    SDL_UnmapGPUTransferBuffer(state->device, vertex_transfer);
+    SDL_UnmapGPUTransferBuffer(rndr->device, vertex_transfer);
 
     SDL_UploadToGPUBuffer(
         copy_pass,
@@ -142,7 +206,7 @@ bool init_renderer_state(Arena* arena) {
             .offset = 0,
         },
         &(SDL_GPUBufferRegion){
-            .buffer = state->quad_vertex_buffer,
+            .buffer = rndr->sprite_quad_vertex_buffer,
             .offset = 0,
             .size = sizeof(QUAD_VERTICES),
         },
@@ -151,7 +215,7 @@ bool init_renderer_state(Arena* arena) {
 
     // Upload indices
     SDL_GPUTransferBuffer* index_transfer = SDL_CreateGPUTransferBuffer(
-        state->device,
+        rndr->device,
         &(SDL_GPUTransferBufferCreateInfo){
             .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
             .size = sizeof(QUAD_INDICES),
@@ -159,9 +223,9 @@ bool init_renderer_state(Arena* arena) {
     );
 
     void* index_data =
-        SDL_MapGPUTransferBuffer(state->device, index_transfer, false);
+        SDL_MapGPUTransferBuffer(rndr->device, index_transfer, false);
     SDL_memcpy(index_data, QUAD_INDICES, sizeof(QUAD_INDICES));
-    SDL_UnmapGPUTransferBuffer(state->device, index_transfer);
+    SDL_UnmapGPUTransferBuffer(rndr->device, index_transfer);
 
     SDL_UploadToGPUBuffer(
         copy_pass,
@@ -170,7 +234,7 @@ bool init_renderer_state(Arena* arena) {
             .offset = 0,
         },
         &(SDL_GPUBufferRegion){
-            .buffer = state->quad_index_buffer,
+            .buffer = rndr->sprite_quad_index_buffer,
             .offset = 0,
             .size = sizeof(QUAD_INDICES),
         },
@@ -180,12 +244,12 @@ bool init_renderer_state(Arena* arena) {
     SDL_EndGPUCopyPass(copy_pass);
     SDL_SubmitGPUCommandBuffer(upload_cmd);
 
-    SDL_ReleaseGPUTransferBuffer(state->device, vertex_transfer);
-    SDL_ReleaseGPUTransferBuffer(state->device, index_transfer);
+    SDL_ReleaseGPUTransferBuffer(rndr->device, vertex_transfer);
+    SDL_ReleaseGPUTransferBuffer(rndr->device, index_transfer);
 
     SDL_GPUShader* vertex_shader = load_shader(
         "quad.vert",
-        state->device,
+        rndr->device,
         SDL_GPU_SHADERSTAGE_VERTEX,
         {
             .num_samplers = 0,
@@ -201,7 +265,7 @@ bool init_renderer_state(Arena* arena) {
 
     SDL_GPUShader* frag_shader = load_shader(
         "quad.frag",
-        state->device,
+        rndr->device,
         SDL_GPU_SHADERSTAGE_FRAGMENT,
         {
             .num_samplers = 1,
@@ -274,8 +338,7 @@ bool init_renderer_state(Arena* arena) {
     };
 
     SDL_GPUColorTargetDescription color_target{
-        .format =
-            SDL_GetGPUSwapchainTextureFormat(state->device, state->window),
+        .format = SDL_GetGPUSwapchainTextureFormat(rndr->device, rndr->window),
         .blend_state = blend_state,
     };
 
@@ -297,60 +360,278 @@ bool init_renderer_state(Arena* arena) {
         .target_info = target_info,
     };
 
-    state->pipeline =
-        SDL_CreateGPUGraphicsPipeline(state->device, &pipeline_info);
-    if (!state->pipeline) {
+    rndr->sprite_pipeline =
+        SDL_CreateGPUGraphicsPipeline(rndr->device, &pipeline_info);
+    if (!rndr->sprite_pipeline) {
         SDL_Log("Failed to create graphics pipeline: %s", SDL_GetError());
         return false;
     }
 
-    SDL_ReleaseGPUShader(state->device, vertex_shader);
-    SDL_ReleaseGPUShader(state->device, frag_shader);
+    SDL_ReleaseGPUShader(rndr->device, vertex_shader);
+    SDL_ReleaseGPUShader(rndr->device, frag_shader);
 
     SDL_GPUBufferCreateInfo transform_buffer_info{};
     transform_buffer_info.usage = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ;
-    transform_buffer_info.size = sizeof(Transform) * state->transforms.capacity;
+    transform_buffer_info.size =
+        sizeof(SpriteVertex) * rndr->sprite_vertices.capacity;
 
-    state->transform_buffer =
-        SDL_CreateGPUBuffer(state->device, &transform_buffer_info);
+    rndr->sprite_vertex_buffer =
+        SDL_CreateGPUBuffer(rndr->device, &transform_buffer_info);
 
-    if (!state->transform_buffer) {
+    if (!rndr->sprite_vertex_buffer) {
         SDL_Log("Failed to create transform buffer: %s", SDL_GetError());
         return false;
     }
 
-    renderer_state = state;
+    rndr->text_geometry.init(arena, MAX_TEXT_VERTICES, MAX_TEXT_INDICES);
+
+    renderer = rndr;
     return true;
 }
 
-void RendererState::destroy() {
-    if (pipeline) {
-        SDL_ReleaseGPUGraphicsPipeline(device, pipeline);
-        pipeline = nullptr;
+bool init_text_renderer(Arena* arena, const char* fontfile_path) {
+    auto device = renderer->device;
+    auto window = renderer->window;
+
+    SDL_GPUShader* vertex_shader = load_shader(
+        "font.vert",
+        device,
+        SDL_GPU_SHADERSTAGE_VERTEX,
+        {
+            .num_samplers = 0,
+            .num_uniform_buffers = 1,
+            .num_storage_buffers = 0,
+            .num_storage_textures = 0,
+        }
+    );
+
+    SDL_GPUShader* frag_shader = load_shader(
+        "font.frag",
+        device,
+        SDL_GPU_SHADERSTAGE_FRAGMENT,
+        {
+            .num_samplers = 1,
+            .num_uniform_buffers = 0,
+            .num_storage_buffers = 0,
+            .num_storage_textures = 0,
+        }
+    );
+
+    if (!vertex_shader || !frag_shader) {
+        SDL_Log("Failed to load font shaders");
+        return false;
     }
 
-    if (transform_buffer) {
-        SDL_ReleaseGPUBuffer(device, transform_buffer);
-        transform_buffer = nullptr;
+    SDL_GPUColorTargetDescription color_target_description{
+        .format = SDL_GetGPUSwapchainTextureFormat(device, window),
+        .blend_state = {
+            .enable_blend = true,
+            .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
+            .color_blend_op = SDL_GPU_BLENDOP_ADD,
+            .color_write_mask = 0xF,
+            .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+            .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_DST_ALPHA,
+            .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+            .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+        },
+    };
+    SDL_GPUVertexBufferDescription vertex_buffer_descriptions{
+        .slot = 0,
+        .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
+        .instance_step_rate = 0,
+        .pitch = sizeof(TextVertex)
+    };
+
+    SDL_GPUVertexAttribute vertex_attributes[3]{
+        {
+            .buffer_slot = 0,
+            .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
+            .location = 0,
+            .offset = 0,
+        },
+        {
+            .buffer_slot = 0,
+            .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
+            .location = 1,
+            .offset = sizeof(f32) * 3,
+        },
+        {
+            .buffer_slot = 0,
+            .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
+            .location = 2,
+            .offset = sizeof(f32) * 7,
+        },
+    };
+
+    SDL_GPUGraphicsPipelineCreateInfo pipeline_info =
+        SDL_GPUGraphicsPipelineCreateInfo{
+            .target_info =
+                {
+                    .num_color_targets = 1,
+                    .color_target_descriptions = &color_target_description,
+                    .has_depth_stencil_target = false,
+                    .depth_stencil_format = SDL_GPU_TEXTUREFORMAT_INVALID,
+                },
+            .vertex_input_state =
+                {
+                    .num_vertex_buffers = 1,
+                    .vertex_buffer_descriptions = &vertex_buffer_descriptions,
+                    .num_vertex_attributes = 3,
+                    .vertex_attributes = vertex_attributes,
+                },
+            .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+            .vertex_shader = vertex_shader,
+            .fragment_shader = frag_shader,
+        };
+
+    SDL_GPUGraphicsPipeline* pipeline =
+        SDL_CreateGPUGraphicsPipeline(device, &pipeline_info);
+    if (!pipeline) {
+        SDL_Log("Fail to create text pipeline");
+        return false;
+    }
+    renderer->text_pipeline = pipeline;
+
+    SDL_ReleaseGPUShader(device, vertex_shader);
+    SDL_ReleaseGPUShader(device, frag_shader);
+
+    SDL_GPUBufferCreateInfo vertex_buffer_info{
+        .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
+        .size = sizeof(TextVertex) * MAX_TEXT_VERTICES,
+    };
+    SDL_GPUBuffer* vertex_buffer =
+        SDL_CreateGPUBuffer(device, &vertex_buffer_info);
+    if (!vertex_buffer) {
+        SDL_Log("Fail to create text vertex buffer");
+        return false;
+    }
+    renderer->text_vertex_buffer = vertex_buffer;
+
+    SDL_GPUBufferCreateInfo index_buffer_info{
+        .usage = SDL_GPU_BUFFERUSAGE_INDEX,
+        .size = sizeof(i32) * MAX_TEXT_INDICES,
+    };
+    SDL_GPUBuffer* index_buffer =
+        SDL_CreateGPUBuffer(device, &index_buffer_info);
+    if (!index_buffer) {
+        SDL_Log("Fail to create text_index_buffer");
+        return false;
+    }
+    renderer->text_index_buffer = index_buffer;
+
+    SDL_GPUTransferBufferCreateInfo transfer_buffer_info{
+        .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+        .size = (sizeof(TextVertex) * MAX_TEXT_VERTICES) +
+                (sizeof(i32) * MAX_TEXT_INDICES),
+    };
+    SDL_GPUTransferBuffer* transfer_buffer =
+        SDL_CreateGPUTransferBuffer(device, &transfer_buffer_info);
+    if (!transfer_buffer) {
+        SDL_Log("Fail to create text transfer buffer");
+        return false;
+    }
+    renderer->text_transfer_buffer = transfer_buffer;
+
+    SDL_GPUSamplerCreateInfo sampler_info{
+        .min_filter = SDL_GPU_FILTER_LINEAR,
+        .mag_filter = SDL_GPU_FILTER_LINEAR,
+        .mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_LINEAR,
+        .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+        .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+        .address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+    };
+    SDL_GPUSampler* sampler = SDL_CreateGPUSampler(device, &sampler_info);
+    if (!sampler) {
+        SDL_Log("Fail to create text gpu sampler");
+        return false;
+    }
+    renderer->text_sampler = sampler;
+
+    TTF_Font* font = TTF_OpenFont(fontfile_path, 50);
+    if (!font) {
+        SDL_Log("Failed to open font: %s", SDL_GetError());
+        return false;
+    }
+    renderer->font = font;
+
+    auto engine = TTF_CreateGPUTextEngine(device);
+    if (!engine) {
+        SDL_Log("Failed to create GPU text engine: %s", SDL_GetError());
+        return false;
+    };
+    renderer->text_engine = engine;
+
+    return true;
+}
+
+void Renderer::destroy() {
+    if (font) {
+        TTF_CloseFont(font);
+        font = nullptr;
+    }
+    if (text_engine) {
+        TTF_DestroyGPUTextEngine(text_engine);
+        text_engine = nullptr;
+    }
+    if (sprite_pipeline) {
+        SDL_ReleaseGPUGraphicsPipeline(device, sprite_pipeline);
+        sprite_pipeline = nullptr;
     }
 
-    if (quad_vertex_buffer) {
-        SDL_ReleaseGPUBuffer(device, quad_vertex_buffer);
-        quad_vertex_buffer = nullptr;
+    if (sprite_transfer_buffer) {
+        SDL_ReleaseGPUTransferBuffer(device, sprite_transfer_buffer);
+        sprite_transfer_buffer = nullptr;
     }
 
-    if (quad_index_buffer) {
-        SDL_ReleaseGPUBuffer(device, quad_index_buffer);
-        quad_index_buffer = nullptr;
+    if (sprite_vertex_buffer) {
+        SDL_ReleaseGPUBuffer(device, sprite_vertex_buffer);
+        sprite_vertex_buffer = nullptr;
+    }
+
+    if (sprite_quad_vertex_buffer) {
+        SDL_ReleaseGPUBuffer(device, sprite_quad_vertex_buffer);
+        sprite_quad_vertex_buffer = nullptr;
+    }
+
+    if (sprite_quad_index_buffer) {
+        SDL_ReleaseGPUBuffer(device, sprite_quad_index_buffer);
+        sprite_quad_index_buffer = nullptr;
+    }
+
+    if (text_pipeline) {
+        SDL_ReleaseGPUGraphicsPipeline(device, text_pipeline);
+        text_pipeline = nullptr;
+    }
+
+    if (text_vertex_buffer) {
+        SDL_ReleaseGPUBuffer(device, text_vertex_buffer);
+        text_vertex_buffer = nullptr;
+    }
+
+    if (text_index_buffer) {
+        SDL_ReleaseGPUBuffer(device, text_index_buffer);
+        text_index_buffer = nullptr;
+    }
+
+    if (text_sampler) {
+        SDL_ReleaseGPUSampler(device, text_sampler);
+        text_sampler = nullptr;
+    }
+
+    if (text_transfer_buffer) {
+        SDL_ReleaseGPUTransferBuffer(device, text_transfer_buffer);
+        text_transfer_buffer = nullptr;
     }
 
     if (device && window) {
         SDL_ReleaseWindowFromGPUDevice(device, window);
     }
+
     if (window) {
         SDL_DestroyWindow(window);
         window = nullptr;
     }
+
     if (device) {
         SDL_DestroyGPUDevice(device);
         device = nullptr;
@@ -373,15 +654,11 @@ void RendererState::destroy() {
  * - Aspect ratio correction based on screen dimensions
  * - Purple clear color (119, 33, 111, 255)
  *
- * @note Requires renderer_state and input_state to be initialized
+ * @note Requires renderer and input to be initialized
  * @note Performs early exit if no transforms are queued
  * @note Creates temporary depth texture for each frame
  */
-void RendererState::render() {
-    if (renderer_state->transforms.is_empty()) {
-        return;
-    }
-
+void Renderer::render() {
     // Calculate the view bounds based on the camera's position and dimensions
     float view_width = game_camera.dimensions.x / game_camera.zoom;
     float view_height = game_camera.dimensions.y / game_camera.zoom;
@@ -393,6 +670,16 @@ void RendererState::render() {
 
     mat4x4 camera_matrix =
         mat4x4::orthographic_projection(min_x, max_x, min_y, max_y);
+
+    mat4x4 text_matrices[2]{
+        mat4x4::orthographic_projection(
+            0,
+            input->screen_size.x,
+            input->screen_size.y,
+            0
+        ),
+        mat4x4(),
+    };
 
     SDL_GPUCommandBuffer* cmdbuf = SDL_AcquireGPUCommandBuffer(device);
     if (!cmdbuf) {
@@ -412,47 +699,32 @@ void RendererState::render() {
         return;
     }
 
-    { // UPDATE TRANSFORM BUFFER
-        SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(cmdbuf);
-        SDL_GPUTransferBufferCreateInfo transfer_info{
-            .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-            .size = (u32)(sizeof(Transform) * transforms.size),
-        };
-        SDL_GPUTransferBuffer* transfer_buffer =
-            SDL_CreateGPUTransferBuffer(device, &transfer_info);
+    process_queued_text();
 
-        defer {
-            SDL_ReleaseGPUTransferBuffer(device, transfer_buffer);
-            SDL_EndGPUCopyPass(copy_pass);
-        };
-
-        void* data = SDL_MapGPUTransferBuffer(device, transfer_buffer, false);
-        SDL_memcpy(data, transforms.items, sizeof(Transform) * transforms.size);
-        SDL_UnmapGPUTransferBuffer(device, transfer_buffer);
-
-        SDL_UploadToGPUBuffer(
-            copy_pass,
-            &(SDL_GPUTransferBufferLocation){
-                .transfer_buffer = transfer_buffer,
-                .offset = 0,
-            },
-            &(SDL_GPUBufferRegion){
-                .buffer = transform_buffer,
-                .offset = 0,
-                .size = (u32)(sizeof(Transform) * transforms.size),
-            },
-            false
-        );
+    if (!sprite_vertices.is_empty()) {
+        upload_sprite_data();
     }
+
+    if (text_geometry.vertex_count > 0) {
+        upload_text_data();
+    }
+
+    SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetFloatProperty(
+        props,
+        SDL_PROP_GPU_TEXTURE_CREATE_D3D12_CLEAR_DEPTH_FLOAT,
+        1.0f
+    );
 
     SDL_GPUTextureCreateInfo depth_texture_info{
         .type = SDL_GPU_TEXTURETYPE_2D,
         .format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
         .usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET,
-        .width = (u32)input_state->screen_size[0],
-        .height = (u32)input_state->screen_size[1],
+        .width = (u32)input->screen_size.x,
+        .height = (u32)input->screen_size.y,
         .layer_count_or_depth = 1,
         .num_levels = 1,
+        .props = props,
     };
 
     SDL_GPUTexture* depth_texture =
@@ -470,35 +742,169 @@ void RendererState::render() {
         1,
         &(SDL_GPUDepthStencilTargetInfo){
             .texture = depth_texture,
-            .clear_depth = 0.0f,
+            .clear_depth = 1.0f,
             .load_op = SDL_GPU_LOADOP_CLEAR,
             .store_op = SDL_GPU_STOREOP_DONT_CARE,
         }
     );
 
-    SDL_BindGPUGraphicsPipeline(render_pass, pipeline);
-    SDL_PushGPUVertexUniformData(cmdbuf, 0, &camera_matrix, sizeof(mat4x4));
-    SDL_BindGPUVertexStorageBuffers(render_pass, 0, &transform_buffer, 1);
+    if (!sprite_vertices.is_empty()) {
+        render_sprite_vertices(render_pass, cmdbuf, &camera_matrix);
+    }
 
+    if (text_geometry.vertex_count > 0) {
+        render_text_geometry(render_pass, cmdbuf, text_matrices);
+    }
+
+    SDL_EndGPURenderPass(render_pass);
+    SDL_SubmitGPUCommandBuffer(cmdbuf);
+    SDL_ReleaseGPUTexture(device, depth_texture);
+
+    // Clear per-frame data
+    sprite_vertices.clear();
+    queued_texts.clear();
+    text_geometry.reset();
+}
+
+void Renderer::upload_sprite_data() {
+    SDL_GPUCommandBuffer* upload_cmd = SDL_AcquireGPUCommandBuffer(device);
+    SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(upload_cmd);
+
+    void* transfer_data =
+        SDL_MapGPUTransferBuffer(device, sprite_transfer_buffer, false);
+    if (!transfer_data) {
+        SDL_Log("Failed to map text transfer buffer");
+        return;
+    }
+
+    SDL_memcpy(
+        transfer_data,
+        sprite_vertices.items,
+        sizeof(SpriteVertex) * sprite_vertices.size
+    );
+    SDL_UnmapGPUTransferBuffer(device, sprite_transfer_buffer);
+
+    SDL_UploadToGPUBuffer(
+        copy_pass,
+        &(SDL_GPUTransferBufferLocation){
+            .transfer_buffer = sprite_transfer_buffer,
+        },
+        &(SDL_GPUBufferRegion){
+            .buffer = sprite_vertex_buffer,
+            .size = (u32)(sizeof(SpriteVertex) * sprite_vertices.size),
+        },
+        false
+    );
+
+    SDL_EndGPUCopyPass(copy_pass);
+    SDL_SubmitGPUCommandBuffer(upload_cmd);
+}
+
+void Renderer::upload_text_data() {
+    SDL_GPUCommandBuffer* upload_cmd = SDL_AcquireGPUCommandBuffer(device);
+    SDL_GPUCopyPass* copy_pass = SDL_BeginGPUCopyPass(upload_cmd);
+
+    void* transfer_data =
+        SDL_MapGPUTransferBuffer(device, text_transfer_buffer, false);
+    if (!transfer_data) {
+        SDL_Log("Failed to map text transfer buffer");
+        return;
+    }
+
+    usize vertex_bytes = sizeof(TextVertex) * text_geometry.vertex_count;
+    usize index_bytes = sizeof(i32) * text_geometry.index_count;
+    usize index_buffer_offset = sizeof(TextVertex) * MAX_TEXT_VERTICES;
+
+    // Copy vertex data
+    u8* dst_vertices = (u8*)transfer_data;
+    SDL_memcpy(dst_vertices, text_geometry.vertices, vertex_bytes);
+
+    // Copy index data
+    u8* dst_indices = (u8*)transfer_data + index_buffer_offset;
+    SDL_memcpy(dst_indices, text_geometry.indices, index_bytes);
+
+    SDL_UnmapGPUTransferBuffer(device, text_transfer_buffer);
+
+    // Upload vertices
+    SDL_UploadToGPUBuffer(
+        copy_pass,
+        &(SDL_GPUTransferBufferLocation){
+            .transfer_buffer = text_transfer_buffer,
+            .offset = 0,
+        },
+        &(SDL_GPUBufferRegion){
+            .buffer = text_vertex_buffer,
+            .offset = 0,
+            .size = (u32)vertex_bytes,
+        },
+        false
+    );
+
+    // Upload indices
+    SDL_UploadToGPUBuffer(
+        copy_pass,
+        &(SDL_GPUTransferBufferLocation){
+            .transfer_buffer = text_transfer_buffer,
+            .offset = (u32)index_buffer_offset,
+        },
+        &(SDL_GPUBufferRegion){
+            .buffer = text_index_buffer,
+            .offset = 0,
+            .size = (u32)index_bytes,
+        },
+        false
+    );
+
+    SDL_EndGPUCopyPass(copy_pass);
+    SDL_SubmitGPUCommandBuffer(upload_cmd);
+}
+
+void Renderer::process_queued_text() {
+    // Process queued text into geometry data
+    for (usize i = 0; i < queued_texts.size; i++) {
+        QueuedText* queued = &queued_texts[i];
+        if (!queued) {
+            continue;
+        }
+
+        TTF_Text* ttf_text = TTF_CreateText(text_engine, font, queued->text, 0);
+        if (ttf_text) {
+            TTF_GPUAtlasDrawSequence* sequence =
+                TTF_GetGPUTextDrawData(ttf_text);
+            if (sequence) {
+                if (!text_atlas_texture && sequence->atlas_texture) {
+                    text_atlas_texture = sequence->atlas_texture;
+                }
+                text_geometry.queue_text_sequence(
+                    sequence,
+                    queued->color,
+                    queued->position
+                );
+            }
+            TTF_DestroyText(ttf_text);
+        }
+    }
+}
+
+void Renderer::render_sprite_vertices(
+    SDL_GPURenderPass* render_pass,
+    SDL_GPUCommandBuffer* cmdbuf,
+    mat4x4* camera_matrix
+) {
+    SDL_BindGPUGraphicsPipeline(render_pass, sprite_pipeline);
+    SDL_PushGPUVertexUniformData(cmdbuf, 0, camera_matrix, sizeof(mat4x4));
+    SDL_BindGPUVertexStorageBuffers(render_pass, 0, &sprite_vertex_buffer, 1);
     SDL_BindGPUVertexBuffers(
         render_pass,
         0,
-        &(SDL_GPUBufferBinding){
-            .buffer = renderer_state->quad_vertex_buffer,
-            .offset = 0,
-        },
+        &(SDL_GPUBufferBinding){.buffer = sprite_quad_vertex_buffer},
         1
     );
-
     SDL_BindGPUIndexBuffer(
         render_pass,
-        &(SDL_GPUBufferBinding){
-            .buffer = renderer_state->quad_index_buffer,
-            .offset = 0,
-        },
+        &(SDL_GPUBufferBinding){.buffer = sprite_quad_index_buffer},
         SDL_GPU_INDEXELEMENTSIZE_16BIT
     );
-
     SDL_BindGPUFragmentSamplers(
         render_pass,
         0,
@@ -508,13 +914,173 @@ void RendererState::render() {
         },
         1
     );
+    SDL_DrawGPUIndexedPrimitives(
+        render_pass,
+        6,
+        (u32)sprite_vertices.size,
+        0,
+        0,
+        0
+    );
+}
 
-    SDL_DrawGPUIndexedPrimitives(render_pass, 6, (u32)transforms.size, 0, 0, 0);
-    SDL_EndGPURenderPass(render_pass);
+void Renderer::render_text_geometry(
+    SDL_GPURenderPass* render_pass,
+    SDL_GPUCommandBuffer* cmdbuf,
+    mat4x4* matrices
+) {
+    SDL_BindGPUGraphicsPipeline(render_pass, text_pipeline);
+    SDL_BindGPUVertexBuffers(
+        render_pass,
+        0,
+        &(SDL_GPUBufferBinding){
+            .buffer = text_vertex_buffer,
+            .offset = 0,
+        },
+        1
+    );
+    SDL_BindGPUIndexBuffer(
+        render_pass,
+        &(SDL_GPUBufferBinding){
+            .buffer = text_index_buffer,
+            .offset = 0,
+        },
+        SDL_GPU_INDEXELEMENTSIZE_32BIT
+    );
+    SDL_PushGPUVertexUniformData(cmdbuf, 0, matrices, sizeof(mat4x4) * 2);
 
-    SDL_SubmitGPUCommandBuffer(cmdbuf);
-    SDL_ReleaseGPUTexture(device, depth_texture);
-    transforms.clear();
+    SDL_BindGPUFragmentSamplers(
+        render_pass,
+        0,
+        &(SDL_GPUTextureSamplerBinding){
+            .texture = text_atlas_texture,
+            .sampler = text_sampler,
+        },
+        1
+    );
+    SDL_DrawGPUIndexedPrimitives(
+        render_pass,
+        text_geometry.index_count,
+        1,
+        0,
+        0,
+        0
+    );
+}
+
+/**
+ * @brief Queues a sprite for rendering at the specified world position with
+ * original size.
+ *
+ * Retrieves sprite data from the global sprite atlas and creates a transform
+ * for instanced rendering. The sprite is positioned so that the specified
+ * coordinates represent the center of the sprite.
+ *
+ * @param sprite_id ID of the sprite in the sprite atlas
+ * @param pos World position where the sprite center should be placed
+ *
+ * @note Requires sprite_atlas and renderer_state to be initialized
+ * @note Sprite position is offset by half the sprite size to convert from
+ * center to top-left
+ * @note Transform is added to the render queue for the current frame
+ */
+void Renderer::draw_sprite(SpriteId sprite_id, vec2 pos) {
+    DEBUG_ASSERT(
+        sprite_atlas != nullptr,
+        "sprite_atlas is null at draw_sprite()"
+    );
+    DEBUG_ASSERT(
+        renderer != nullptr,
+        "renderer_state is null at draw_sprite()"
+    );
+
+    SpriteAtlasEntry sprite = sprite_atlas->get_sprite_entry(sprite_id);
+
+    SpriteVertex sprite_vertex{
+        .pos = pos - vec2(sprite.size) / 2.0f,
+        .size = vec2(sprite.size),
+        .uv_min = sprite.uv_min,
+        .uv_max = sprite.uv_max,
+    };
+
+    renderer->sprite_vertices.push(sprite_vertex);
+}
+
+/**
+ * @brief Integer position overload for draw_sprite.
+ *
+ * Convenience overload that converts integer coordinates to floating point
+ * and calls the main draw_sprite function.
+ *
+ * @param sprite_id ID of the sprite in the sprite atlas
+ * @param pos World position as integer coordinates (sprite center)
+ */
+void Renderer::draw_sprite(SpriteId sprite_id, ivec2 pos) {
+    draw_sprite(sprite_id, vec2(pos));
+}
+
+/**
+ * @brief Queues a sprite for rendering with custom size scaling.
+ *
+ * Similar to the basic draw_sprite but allows overriding the sprite size for
+ * scaling effects. The original UV coordinates from the sprite atlas are
+ * preserved, so the entire sprite texture is mapped to the custom size.
+ *
+ * @param sprite_id ID of the sprite in the sprite atlas
+ * @param pos World position where the sprite center should be placed
+ * @param size Custom size for rendering (overrides atlas size)
+ *
+ * @note Maintains original UV coordinates for proper texture sampling
+ * @note Useful for scaling sprites without creating new atlas entries
+ */
+void Renderer::draw_sprite(SpriteId sprite_id, vec2 pos, vec2 size) {
+    DEBUG_ASSERT(
+        sprite_atlas != nullptr,
+        "sprite_atlas is null at draw_sprite()"
+    );
+    DEBUG_ASSERT(
+        renderer != nullptr,
+        "renderer_state is null at draw_sprite()"
+    );
+
+    SpriteAtlasEntry sprite = sprite_atlas->get_sprite_entry(sprite_id);
+
+    SpriteVertex sprite_vertex{
+        .pos = pos - size / 2.0f,
+        .size = size,
+        .uv_min = sprite.uv_min,
+        .uv_max = sprite.uv_max,
+    };
+
+    renderer->sprite_vertices.push(sprite_vertex);
+}
+
+/**
+ * @brief Integer position overload for draw_sprite with custom sizing.
+ *
+ * Convenience overload that converts integer coordinates to floating point
+ * and calls the main draw_sprite function with custom size.
+ *
+ * @param sprite_id ID of the sprite in the sprite atlas
+ * @param pos World position as integer coordinates (sprite center)
+ * @param size Custom size for rendering
+ */
+void Renderer::draw_sprite(SpriteId sprite_id, ivec2 pos, vec2 size) {
+    draw_sprite(sprite_id, vec2(pos), size);
+}
+
+void Renderer::draw_text(const char* text, vec2 position, vec4 color) {
+    TTF_Text* ttf_text = TTF_CreateText(text_engine, font, text, 0);
+
+    TTF_DestroyText(ttf_text);
+    if (queued_texts.is_full()) {
+        SDL_Log("Text queue is full, skipping text: %s", text);
+        return;
+    }
+    QueuedText* queued = &queued_texts.items[queued_texts.size++];
+    SDL_strlcpy(queued->text, text, sizeof(queued->text));
+    queued->position = position;
+    queued->color = color;
 }
 
 /**
@@ -534,23 +1100,23 @@ void RendererState::render() {
  * @param screen_pos Screen coordinates in pixels with origin at top-left
  * @return ivec2 World coordinates in game units
  *
- * @note Requires both renderer_state and input_state to be initialized
+ * @note Requires both renderer and input to be initialized
  * @note Y-axis transformation handles screen Y increasing downward vs world Y
  * direction
  */
 ivec2 screen_to_world(ivec2 screen_pos) {
-    if (renderer_state == nullptr) unreachable;
-    if (input_state == nullptr) unreachable;
+    if (renderer == nullptr) unreachable;
+    if (input == nullptr) unreachable;
 
-    Camera2d camera = renderer_state->game_camera;
+    Camera2d camera = renderer->game_camera;
 
-    i32 x = (f32)screen_pos.x / (f32)input_state->screen_size.x *
+    i32 x = (f32)screen_pos.x / (f32)input->screen_size.x *
             camera.dimensions.x; // [0; dimensions.x]
 
     // Offset using dimensions and position
     x += -camera.dimensions.x / 2.0f + camera.position.x;
 
-    i32 y = (f32)screen_pos.y / (f32)input_state->screen_size.y *
+    i32 y = (f32)screen_pos.y / (f32)input->screen_size.y *
             camera.dimensions.y; // [0; dimensions.y]
 
     // Offset using dimensions and position
@@ -623,7 +1189,7 @@ SDL_Surface* load_image(const char* image_filename, i32 desired_channels) {
  * @param surface SDL surface containing the image data to upload
  * @return SDL_GPUTexture* Ready-to-use GPU texture, or nullptr on failure
  *
- * @note Requires renderer_state->device to be initialized
+ * @note Requires renderer->device to be initialized
  * @note Creates and manages temporary transfer buffer for upload
  * @note Automatically submits upload commands and cleans up transfer resources
  * @note Typically used after load_image() to create GPU-resident textures
@@ -631,7 +1197,7 @@ SDL_Surface* load_image(const char* image_filename, i32 desired_channels) {
  * SDL_ReleaseGPUTexture
  */
 SDL_GPUTexture* gpu_texture_from_surface(SDL_Surface* surface) {
-    SDL_GPUDevice* device = renderer_state->device;
+    SDL_GPUDevice* device = renderer->device;
 
     DEBUG_ASSERT(
         surface != nullptr && device != nullptr,
@@ -723,7 +1289,7 @@ SDL_GPUTexture* gpu_texture_from_surface(SDL_Surface* surface) {
  * textures)
  * @return SDL_GPUShader* Compiled shader object, or nullptr on failure
  *
- * @note Requires renderer_state->device to be initialized
+ * @note Requires renderer->device to be initialized
  * @note Automatically selects appropriate shader format based on GPU
  * capabilities
  * @note Uses "main" entry point for SPIRV/DXIL, "main0" for MSL

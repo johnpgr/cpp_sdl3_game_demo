@@ -38,4 +38,4 @@ struct GameState {
 
 static GameState* game_state{};
 
-EXPORT_FN void game_update(GameState* gs, InputState* is, SpriteAtlas* sa, RendererState* rs);
+EXPORT_FN void game_update(GameState* gs, Input* is, SpriteAtlas* sa, Renderer* r);
