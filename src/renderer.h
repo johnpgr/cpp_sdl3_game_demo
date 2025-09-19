@@ -9,6 +9,10 @@
 #include "math3d.h"
 #include "types.h"
 
+#define MAX_SPRITES 5000
+#define MAX_TEXT_VERTICES 5000
+#define MAX_TEXT_INDICES 5000
+
 struct Camera2d {
     f32 zoom{1.0};
     vec2 dimensions{};
@@ -72,13 +76,13 @@ struct Renderer {
     SDL_GPUSampler* text_sampler{};
     TTF_Font* font{};
     TTF_TextEngine* text_engine{};
-    SDL_GPUTexture* text_atlas_texture;
+    SDL_GPUTexture* text_atlas_texture{};
 
     TextGeometryData text_geometry{};
 
     Camera2d game_camera{};
     Camera2d ui_camera{};
-    Array<SpriteVertex, 1000> sprite_vertices{};
+    Array<SpriteVertex, MAX_SPRITES> sprite_vertices{};
     Array<QueuedText, 100> queued_texts{};
 
     void destroy();

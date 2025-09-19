@@ -9,9 +9,6 @@
 #include "utils.h"
 #include <SDL3_image/SDL_image.h>
 
-#define MAX_TEXT_VERTICES 4000
-#define MAX_TEXT_INDICES 6000
-
 // clang-format off
 static const f32 QUAD_VERTICES[] = {
     // Position    UV
@@ -1070,17 +1067,16 @@ void Renderer::draw_sprite(SpriteId sprite_id, ivec2 pos, vec2 size) {
 }
 
 void Renderer::draw_text(const char* text, vec2 position, vec4 color) {
-    TTF_Text* ttf_text = TTF_CreateText(text_engine, font, text, 0);
-
-    TTF_DestroyText(ttf_text);
     if (queued_texts.is_full()) {
         SDL_Log("Text queue is full, skipping text: %s", text);
         return;
     }
-    QueuedText* queued = &queued_texts.items[queued_texts.size++];
-    SDL_strlcpy(queued->text, text, sizeof(queued->text));
-    queued->position = position;
-    queued->color = color;
+    QueuedText queued_text{};
+    SDL_strlcpy(queued_text.text, text, sizeof(queued_text.text));
+    queued_text.position = position;
+    queued_text.color = color;
+
+    queued_texts.push(queued_text);
 }
 
 /**
