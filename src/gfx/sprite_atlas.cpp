@@ -1,8 +1,8 @@
-#include "sprite_atlas.h"
+#include "gfx/sprite_atlas.h"
 
-#include "assert.h"
-#include "renderer.h"
-#include "utils.h"
+#include "core/assert.h"
+#include "gfx/renderer.h"
+#include "core/utils.h"
 #include <SDL3_image/SDL_image.h>
 
 bool init_sprite_atlas(Arena* arena, const char* atlas_filename) {

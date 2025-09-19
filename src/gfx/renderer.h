@@ -1,0 +1,136 @@
+#pragma once
+
+#include "SDL3/SDL_gpu.h"
+#include "SDL3/SDL_video.h"
+#include "SDL3_ttf/SDL_ttf.h"
+#include "core/arena.h"
+#include "core/array.h"
+#include "gfx/sprite.h"
+#include "core/math3d.h"
+#include "core/types.h"
+
+#define MAX_SPRITES 5000
+#define MAX_TEXT_VERTICES 5000
+#define MAX_TEXT_INDICES 5000
+
+struct Camera2d {
+    f32 zoom{1.0};
+    vec2 dimensions{};
+    vec2 position{};
+};
+
+struct SpriteVertex {
+    vec2 pos{};
+    vec2 size{};
+    vec2 uv_min{}; // Normalized UV coordinates from sprite atlas
+    vec2 uv_max{}; // Normalized UV coordinates from sprite atlas
+};
+
+struct TextVertex {
+    vec3 pos{};
+    vec4 color{};
+    vec2 uv{};
+};
+
+struct QueuedText {
+    char text[256];
+    vec2 position;
+    vec4 color;
+};
+
+// Text geometry data for batching text rendering
+struct TextGeometryData {
+    Arena* arena;
+    TextVertex* vertices;
+    i32* indices;
+    i32 vertex_count;
+    i32 index_count;
+    i32 max_vertices;
+    i32 max_indices;
+
+    void init(Arena* memory_arena, i32 max_vertex_count, i32 max_index_count);
+    void queue_text_sequence(
+        const TTF_GPUAtlasDrawSequence* sequence,
+        const vec4& color,
+        vec2 offset = {0, 0}
+    );
+    void reset();
+};
+
+struct Renderer {
+    SDL_Window* window{};
+    SDL_GPUDevice* device{};
+
+    // Sprite rendering
+    SDL_GPUGraphicsPipeline* sprite_pipeline{};
+    SDL_GPUBuffer* sprite_vertex_buffer{};
+    SDL_GPUBuffer* sprite_quad_vertex_buffer{};
+    SDL_GPUBuffer* sprite_quad_index_buffer{};
+    SDL_GPUTransferBuffer* sprite_transfer_buffer{};
+
+    // Text rendering
+    SDL_GPUGraphicsPipeline* text_pipeline{};
+    SDL_GPUBuffer* text_vertex_buffer{};
+    SDL_GPUBuffer* text_index_buffer{};
+    SDL_GPUTransferBuffer* text_transfer_buffer{};
+    SDL_GPUSampler* text_sampler{};
+    TTF_Font* font{};
+    TTF_TextEngine* text_engine{};
+    SDL_GPUTexture* text_atlas_texture{};
+
+    TextGeometryData text_geometry{};
+
+    Camera2d game_camera{};
+    Camera2d ui_camera{};
+    Array<SpriteVertex, MAX_SPRITES> sprite_vertices{};
+    Array<QueuedText, 100> queued_texts{};
+
+    void destroy();
+    void render();
+    void draw_sprite(SpriteId sprite_id, vec2 pos);
+    void draw_sprite(SpriteId sprite_id, ivec2 pos);
+    void draw_sprite(SpriteId sprite_id, vec2 pos, vec2 size);
+    void draw_sprite(SpriteId sprite_id, ivec2 pos, vec2 size);
+    void draw_text(const char* text, vec2 position, vec4 color);
+
+    void process_queued_text();
+
+    void render_sprite_vertices(
+        SDL_GPURenderPass* render_pass,
+        SDL_GPUCommandBuffer* cmdbuf,
+        mat4x4* camera_matrix
+    );
+    void render_text_geometry(
+        SDL_GPURenderPass* render_pass,
+        SDL_GPUCommandBuffer* cmdbuf,
+        mat4x4* matrices
+    );
+
+    void upload_sprite_data();
+    void upload_text_data();
+};
+
+static Renderer* renderer{};
+
+bool init_renderer(Arena* arena);
+bool init_text_renderer(Arena* arena, const char* fontfile_path);
+
+ivec2 screen_to_world(ivec2 screen_pos);
+
+SDL_Surface* load_image(const char* image_filename, i32 desired_channels = 4);
+
+struct ShaderProps {
+    u32 num_samplers{};
+    u32 num_uniform_buffers{};
+    u32 num_storage_buffers{};
+    u32 num_storage_textures{};
+};
+
+SDL_GPUShader* load_shader(
+    const char* shader_name,
+    SDL_GPUDevice* device,
+    SDL_GPUShaderStage shader_stage,
+    ShaderProps shader_props
+);
+
+SDL_GPUTexture* gpu_texture_from_surface(SDL_Surface* surface);

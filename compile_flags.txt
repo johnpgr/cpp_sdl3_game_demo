@@ -7,6 +7,7 @@
 -IC:/SDKs/SDL3/include
 -IC:/SDKs/SDL3_image/include
 -IC:/SDKs/SDL3_ttf/include
+-Isrc/
 -Wall
 -Wextra
 -Wno-address-of-temporary

@@ -1,10 +1,10 @@
 #pragma once
 
 #include "SDL3/SDL_gpu.h"
-#include "arena.h"
-#include "array.h"
-#include "assets.h"
-#include "math3d.h"
+#include "core/arena.h"
+#include "core/array.h"
+#include "gfx/sprite.h"
+#include "core/math3d.h"
 
 struct SpriteAtlasEntry {
     ivec2 atlas_offset; // Pixel coordinates in atlas

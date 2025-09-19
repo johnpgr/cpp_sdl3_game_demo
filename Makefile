@@ -120,7 +120,7 @@ BIN_DIR := $(BUILD_DIR)/$(BUILD_SUFFIX)/bin
 
 # Target files
 MAIN_SOURCE := $(SRC_DIR)/main.cpp
-GAME_SOURCE := $(SRC_DIR)/game.cpp
+GAME_SOURCE := $(SRC_DIR)/game/game.cpp
 MAIN_TARGET := $(BIN_DIR)/$(EXECUTABLE)
 GAME_TARGET := $(BIN_DIR)/libgame$(LIBRARY_EXT)
 MAIN_PDB := $(BIN_DIR)/$(PROJECT_NAME).pdb
