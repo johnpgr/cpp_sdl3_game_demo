@@ -82,8 +82,8 @@ struct Renderer {
 
     bool init();
     bool init_text(const char* fontfile_path);
+    void cleanup();
 
-    void destroy();
     void render();
     void draw_sprite(SpriteId sprite_id, vec2 pos);
     void draw_sprite(SpriteId sprite_id, ivec2 pos);

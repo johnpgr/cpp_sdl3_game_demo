@@ -20,7 +20,10 @@ struct SpriteAtlas {
     ivec2 atlas_size{}; // Total atlas dimensions in pixels
     Array<SpriteAtlasEntry, 256> sprites{};
 
-    void destroy();
+    bool init(const char* atlas_filename);
+    void cleanup();
+
+    void register_sprites();
 
     SpriteId register_sprite(
         ivec2 atlas_offset,

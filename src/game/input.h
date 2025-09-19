@@ -4,6 +4,7 @@
 #include "core/arena.h"
 #include "core/math3d.h"
 #include "core/types.h"
+#include "game/consts.h"
 #include <SDL3/SDL_oldnames.h>
 #include <SDL3/SDL_scancode.h>
 
@@ -131,7 +132,7 @@ struct Key {
 };
 
 struct Input {
-    ivec2 screen_size{};
+    ivec2 screen_size{INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT};
 
     // Screen
     ivec2 prev_mouse_pos{};

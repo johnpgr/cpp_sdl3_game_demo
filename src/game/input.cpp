@@ -1,15 +1,7 @@
 #include "game/input.h"
 #include "SDL3/SDL_events.h"
-#include "core/arena.h"
 #include "core/assert.h"
-#include "game/consts.h"
 #include "gfx/renderer.h"
-
-void init_input(Arena* arena) {
-    input = arena->push_struct<Input>();
-    input->screen_size.x = INITIAL_WINDOW_WIDTH;
-    input->screen_size.y = INITIAL_WINDOW_HEIGHT;
-}
 
 void Input::begin_frame() {
     for (i32 i = 0; i < KEY_COUNT; i++) {

@@ -534,7 +534,7 @@ bool Renderer::init_text(const char* fontfile_path) {
     return true;
 }
 
-void Renderer::destroy() {
+void Renderer::cleanup() {
     if (font) {
         TTF_CloseFont(font);
         font = nullptr;

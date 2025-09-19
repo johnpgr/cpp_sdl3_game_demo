@@ -5,8 +5,7 @@
 #include "core/utils.h"
 #include <SDL3_image/SDL_image.h>
 
-bool init_sprite_atlas(Arena* arena, const char* atlas_filename) {
-    auto atlas = arena->push_struct<SpriteAtlas>();
+bool SpriteAtlas::init(const char* atlas_filename) {
     auto device = renderer->device;
     DEBUG_ASSERT(
         device != nullptr,
@@ -23,16 +22,16 @@ bool init_sprite_atlas(Arena* arena, const char* atlas_filename) {
     };
 
     // Store atlas dimensions
-    atlas->atlas_size = ivec2(atlas_surface->w, atlas_surface->h);
+    atlas_size = ivec2(atlas_surface->w, atlas_surface->h);
     SDL_Log(
         "Loaded sprite atlas: %dx%d",
-        atlas->atlas_size.x,
-        atlas->atlas_size.y
+        atlas_size.x,
+        atlas_size.y
     );
 
     // Create GPU texture from surface
-    atlas->texture = gpu_texture_from_surface(atlas_surface);
-    if (!atlas->texture) {
+    texture = gpu_texture_from_surface(atlas_surface);
+    if (!texture) {
         SDL_Log("Failed to create GPU texture from atlas surface");
         return false;
     }
@@ -46,31 +45,24 @@ bool init_sprite_atlas(Arena* arena, const char* atlas_filename) {
         .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
     };
 
-    atlas->sampler = SDL_CreateGPUSampler(device, &sampler_info);
-    if (!atlas->sampler) {
+    sampler = SDL_CreateGPUSampler(device, &sampler_info);
+    if (!sampler) {
         SDL_Log("Failed to create atlas sampler: %s", SDL_GetError());
-        SDL_ReleaseGPUTexture(device, atlas->texture);
+        SDL_ReleaseGPUTexture(device, texture);
         return false;
     }
 
-    sprite_atlas = atlas;
     return true;
 }
 
-void register_sprites() {
-    DEBUG_ASSERT(
-        sprite_atlas != nullptr,
-        "sprite_atlas is null on register_sprites()"
-    );
-
-    // Register sprites with their atlas coordinates
-    sprite_atlas->register_sprite_at_id(
+void SpriteAtlas::register_sprites() {
+    register_sprite_at_id(
         SPRITE_WHITE,
         ivec2(0, 0),
         ivec2(1, 1),
         "white_pixel"
     );
-    sprite_atlas->register_sprite_at_id(
+    register_sprite_at_id(
         SPRITE_DICE,
         ivec2(16, 0),
         ivec2(16, 16),
@@ -80,7 +72,7 @@ void register_sprites() {
     SDL_Log("Registered %zu sprites in atlas", sprite_atlas->sprites.size);
 }
 
-void SpriteAtlas::destroy() {
+void SpriteAtlas::cleanup() {
     auto device = renderer->device;
 
     if (texture) {

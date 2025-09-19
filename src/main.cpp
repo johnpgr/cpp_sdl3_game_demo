@@ -8,6 +8,7 @@
 #include "core/file.cpp"
 #include "core/math3d.cpp"
 #include "game/input.cpp"
+#include "game/game_state.cpp"
 #include "gfx/renderer.cpp"
 #include "gfx/sprite_atlas.cpp"
 #include <SDL3/SDL.h>
@@ -65,26 +66,6 @@ void game_update(GameState* gs, Input* is, SpriteAtlas* sa, Renderer* rs) {
     game_update_ptr(gs, is, sa, rs);
 }
 
-static void init_game_state(Arena* arena) {
-    game_state = arena->push_struct<GameState>();
-
-    game_state->key_mappings[MOVE_UP].keys.push(KEY_UP);
-    game_state->key_mappings[MOVE_UP].keys.push(KEY_W);
-    game_state->key_mappings[MOVE_DOWN].keys.push(KEY_DOWN);
-    game_state->key_mappings[MOVE_DOWN].keys.push(KEY_S);
-    game_state->key_mappings[MOVE_RIGHT].keys.push(KEY_RIGHT);
-    game_state->key_mappings[MOVE_RIGHT].keys.push(KEY_D);
-    game_state->key_mappings[MOVE_LEFT].keys.push(KEY_LEFT);
-    game_state->key_mappings[MOVE_LEFT].keys.push(KEY_A);
-
-    game_state->key_mappings[QUIT].keys.push(KEY_ESCAPE);
-
-    game_state->key_mappings[MOUSE1].keys.push(KEY_MOUSE_LEFT);
-    game_state->key_mappings[MOUSE2].keys.push(KEY_MOUSE_RIGHT);
-
-    game_state->key_mappings[TOGGLE_FPS_CAP].keys.push(KEY_T);
-}
-
 void poll_events() {
     SDL_Event event{};
 
@@ -134,8 +115,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
     TTF_Init();
 
     defer {
-        if (sprite_atlas) sprite_atlas->destroy();
-        if (renderer) renderer->destroy();
+        if (sprite_atlas) sprite_atlas->cleanup();
+        if (renderer) renderer->cleanup();
         transient_storage.destroy();
         permanent_storage.destroy();
 
@@ -143,8 +124,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
         SDL_Quit();
     };
 
-    init_game_state(&permanent_storage);
-    init_input(&permanent_storage);
+    game_state = permanent_storage.push_struct<GameState>();
+    if(!game_state) {
+        SDL_Log("Failed to initialize game_state");
+        return EXIT_FAILURE;
+    }
+    game_state->register_keymaps();
+
+    input = permanent_storage.push_struct<Input>();
 
     renderer = permanent_storage.push_struct<Renderer>();
     if (!renderer || !renderer->init()) {
@@ -157,12 +144,13 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    if (!init_sprite_atlas(&permanent_storage, "TEXTURE_ATLAS.png")) {
+    sprite_atlas = permanent_storage.push_struct<SpriteAtlas>();
+    if (!sprite_atlas || !sprite_atlas->init("TEXTURE_ATLAS.png")) {
         SDL_Log("Failed to initialize sprite_atlas");
         return EXIT_FAILURE;
     }
 
-    register_sprites();
+    sprite_atlas->register_sprites();
 
     SDL_ShowWindow(renderer->window);
 
