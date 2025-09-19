@@ -188,11 +188,7 @@ shader-dirs:
 copy-assets: | dirs
 	@echo "Copying assets to $(BIN_DIR)..."
 ifeq ($(wildcard $(ASSETS_DIR)),$(ASSETS_DIR))
-ifeq ($(PLATFORM),Windows)
-	$(COPYR) $(ASSETS_DIR) $(BIN_DIR)/
-else
-	$(COPYR) $(ASSETS_DIR) $(BIN_DIR)/
-endif
+	-$(COPYR) $(ASSETS_DIR) $(BIN_DIR)
 else
 	@echo "Warning: $(ASSETS_DIR) directory not found, skipping asset copy"
 endif

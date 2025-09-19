@@ -1,5 +1,6 @@
 #include "game/game.h"
 #include "core/types.h"
+#include "gfx/renderer.h"
 #include "gfx/sprite.h"
 #include "gfx/sprite_atlas.cpp"
 #include "core/arena.cpp"
@@ -44,7 +45,7 @@ EXPORT_FN void game_update(GameState* gs, Input* is, SpriteAtlas* sa, Renderer* 
     }
 
     renderer->draw_sprite(SPRITE_DICE, game_state->player_position);
-    renderer->draw_text("Hello, World!", vec2(0, 0), vec4(1.0f, 1.0f, 1.0f, 1.0f));
+    renderer->draw_text("Hello, World!", vec2(0, 0), vec4(1.0f, 1.0f, 1.0f, 1.0f), FONTSIZE_MEDIUM);
 
     if (just_pressed(TOGGLE_FPS_CAP)) {
         game_state->fps_cap = !game_state->fps_cap;

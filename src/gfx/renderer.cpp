@@ -1,6 +1,7 @@
 #include "gfx/renderer.h"
 #include "SDL3/SDL_gpu.h"
 #include "SDL3/SDL_properties.h"
+#include "SDL3/SDL_stdinc.h"
 #include "core/assert.h"
 #include "core/file.h"
 #include "core/utils.h"
@@ -359,6 +360,21 @@ bool Renderer::init() {
 }
 
 bool Renderer::init_text(const char* fontfile_path) {
+    SDL_strlcpy(font_path, fontfile_path, sizeof(font_path));
+
+    for (usize i = 0; i < FONTSIZE_COUNT; i++) {
+        fonts[i] = TTF_OpenFont(font_path, font_sizes[i]);
+        if (!fonts[i]) {
+            SDL_Log(
+                "Failed to load font %s with size %d: %s",
+                font_path,
+                font_sizes[i],
+                SDL_GetError()
+            );
+            return false;
+        }
+    }
+
     SDL_GPUShader* vertex_shader = load_shader(
         "font.vert",
         device,
@@ -512,13 +528,6 @@ bool Renderer::init_text(const char* fontfile_path) {
     }
     renderer->text_sampler = sampler;
 
-    TTF_Font* font = TTF_OpenFont(fontfile_path, 50);
-    if (!font) {
-        SDL_Log("Failed to open font: %s", SDL_GetError());
-        return false;
-    }
-    renderer->font = font;
-
     auto engine = TTF_CreateGPUTextEngine(device);
     if (!engine) {
         SDL_Log("Failed to create GPU text engine: %s", SDL_GetError());
@@ -530,14 +539,18 @@ bool Renderer::init_text(const char* fontfile_path) {
 }
 
 void Renderer::cleanup() {
-    if (font) {
-        TTF_CloseFont(font);
-        font = nullptr;
+    for (int i = 0; i < FONTSIZE_COUNT; ++i) {
+        if (fonts[i]) {
+            TTF_CloseFont(fonts[i]);
+            fonts[i] = nullptr;
+        }
     }
+
     if (text_engine) {
         TTF_DestroyGPUTextEngine(text_engine);
         text_engine = nullptr;
     }
+
     if (sprite_pipeline) {
         SDL_ReleaseGPUGraphicsPipeline(device, sprite_pipeline);
         sprite_pipeline = nullptr;
@@ -844,6 +857,15 @@ void Renderer::process_queued_text() {
             continue;
         }
 
+        TTF_Font* font = get_font(queued->font_size);
+        if (!font) {
+            SDL_Log(
+                "Failed to get font for size %d",
+                static_cast<int>(queued->font_size)
+            );
+            continue;
+        }
+
         TTF_Text* ttf_text = TTF_CreateText(text_engine, font, queued->text, 0);
         if (ttf_text) {
             TTF_GPUAtlasDrawSequence* sequence =
@@ -1046,7 +1068,12 @@ void Renderer::draw_sprite(SpriteId sprite_id, ivec2 pos, vec2 size) {
     draw_sprite(sprite_id, vec2(pos), size);
 }
 
-void Renderer::draw_text(const char* text, vec2 position, vec4 color) {
+void Renderer::draw_text(
+    const char* text,
+    vec2 position,
+    vec4 color,
+    FontSize font_size
+) {
     if (queued_texts.is_full()) {
         SDL_Log("Text queue is full, skipping text: %s", text);
         return;
@@ -1055,8 +1082,17 @@ void Renderer::draw_text(const char* text, vec2 position, vec4 color) {
     SDL_strlcpy(queued_text.text, text, sizeof(queued_text.text));
     queued_text.position = position;
     queued_text.color = color;
+    queued_text.font_size = font_size;
 
     queued_texts.push(queued_text);
+}
+
+TTF_Font* Renderer::get_font(FontSize size) {
+    if (size >= FONTSIZE_COUNT) {
+        SDL_Log("Invalid font size: %d", (i32)size);
+        return nullptr;
+    }
+    return fonts[size];
 }
 
 /**
